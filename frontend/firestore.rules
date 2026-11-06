@@ -1,0 +1,270 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function syncEnabled(uid) {
+      return signedInAs(uid)
+        && exists(/databases/$(database)/documents/users/$(uid))
+        && get(/databases/$(database)/documents/users/$(uid)).data.cloudSyncEnabled == true;
+    }
+
+    function validOptionalMetric(value, minimum, maximum) {
+      return value == null
+        || ((value is int || value is float)
+          && value >= minimum
+          && value <= maximum);
+    }
+
+    function validCptSummary(data) {
+      return data.keys().hasAll([
+          'activityId', 'mode', 'completedAt', 'schemaVersion', 'dataProvenance',
+          'trialCount', 'targetCount', 'nonTargetCount', 'responseCount',
+          'hitCount', 'missCount', 'falseAlarmCount', 'correctRejectionCount',
+          'accuracyPercent', 'meanHitReactionTimeMs', 'validReactionTimeCount', 'hitReactionTimeTotalMs'
+        ])
+        && data.keys().hasOnly([
+          'activityId', 'mode', 'completedAt', 'schemaVersion', 'dataProvenance',
+          'trialCount', 'targetCount', 'nonTargetCount', 'responseCount',
+          'hitCount', 'missCount', 'falseAlarmCount', 'correctRejectionCount',
+          'accuracyPercent', 'meanHitReactionTimeMs', 'validReactionTimeCount', 'hitReactionTimeTotalMs'
+        ])
+        && data.activityId == 'cpt'
+        && data.mode == 'scored'
+        && data.completedAt is timestamp
+        && data.schemaVersion == 1
+        && data.dataProvenance == 'frontend-cpt-demo-v1'
+        && data.trialCount == 24
+        && data.targetCount == 6
+        && data.nonTargetCount == 18
+        && data.responseCount is int
+        && data.responseCount >= 0 && data.responseCount <= 24
+        && data.hitCount is int
+        && data.hitCount >= 0 && data.hitCount <= 6
+        && data.missCount is int
+        && data.missCount >= 0 && data.missCount <= 6
+        && data.falseAlarmCount is int
+        && data.falseAlarmCount >= 0 && data.falseAlarmCount <= 18
+        && data.correctRejectionCount is int
+        && data.correctRejectionCount >= 0 && data.correctRejectionCount <= 18
+        && data.hitCount + data.missCount == data.targetCount
+        && data.falseAlarmCount + data.correctRejectionCount == data.nonTargetCount
+        && data.responseCount == data.hitCount + data.falseAlarmCount
+        && validOptionalMetric(data.accuracyPercent, 0, 100)
+        && validOptionalMetric(data.meanHitReactionTimeMs, 0, 1200)
+        && data.validReactionTimeCount is int
+        && data.validReactionTimeCount >= 0
+        && data.validReactionTimeCount <= data.hitCount
+        && data.hitReactionTimeTotalMs is int
+        && data.hitReactionTimeTotalMs >= 0
+        && data.hitReactionTimeTotalMs <= data.validReactionTimeCount * 1200;
+    }
+
+    function validApplicationSession(data, sessionId) {
+      return data.keys().hasAll([
+          'sessionId', 'sessionType', 'status', 'activityId', 'trialCount',
+          'createdAt', 'updatedAt', 'schemaVersion', 'dataProvenance'
+        ])
+        && data.keys().hasOnly([
+          'sessionId', 'sessionType', 'status', 'activityId', 'trialCount',
+          'createdAt', 'updatedAt', 'schemaVersion', 'dataProvenance'
+        ])
+        && data.sessionId == sessionId
+        && data.sessionType == 'cpt'
+        && data.status == 'complete'
+        && data.activityId == 'cpt'
+        && data.trialCount == 24
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && data.schemaVersion == 1
+        && data.dataProvenance == 'frontend-cpt-demo-v1';
+    }
+
+    function validReport(data, reportId) {
+      return data.keys().hasAll([
+          'reportId', 'runId', 'reportType', 'createdAt', 'schemaVersion',
+          'dataProvenance', 'trialCount', 'targetCount', 'nonTargetCount',
+          'responseCount', 'hitCount', 'missCount', 'falseAlarmCount',
+          'correctRejectionCount', 'accuracyPercent', 'meanHitReactionTimeMs',
+          'validReactionTimeCount', 'hitReactionTimeTotalMs'
+        ])
+        && data.keys().hasOnly([
+          'reportId', 'runId', 'reportType', 'createdAt', 'schemaVersion',
+          'dataProvenance', 'trialCount', 'targetCount', 'nonTargetCount',
+          'responseCount', 'hitCount', 'missCount', 'falseAlarmCount',
+          'correctRejectionCount', 'accuracyPercent', 'meanHitReactionTimeMs',
+          'validReactionTimeCount', 'hitReactionTimeTotalMs'
+        ])
+        && data.reportId == reportId
+        && data.runId == reportId
+        && data.reportType == 'cpt-summary'
+        && data.createdAt is timestamp
+        && data.createdAt == request.time
+        && data.schemaVersion == 1
+        && data.dataProvenance == 'frontend-cpt-demo-v1'
+        && validCptSummary({
+          'activityId': 'cpt',
+          'mode': 'scored',
+          'completedAt': data.createdAt,
+          'schemaVersion': data.schemaVersion,
+          'dataProvenance': data.dataProvenance,
+          'trialCount': data.trialCount,
+          'targetCount': data.targetCount,
+          'nonTargetCount': data.nonTargetCount,
+          'responseCount': data.responseCount,
+          'hitCount': data.hitCount,
+          'missCount': data.missCount,
+          'falseAlarmCount': data.falseAlarmCount,
+          'correctRejectionCount': data.correctRejectionCount,
+          'accuracyPercent': data.accuracyPercent,
+          'meanHitReactionTimeMs': data.meanHitReactionTimeMs,
+          'validReactionTimeCount': data.validReactionTimeCount,
+          'hitReactionTimeTotalMs': data.hitReactionTimeTotalMs
+        });
+    }
+
+    function validDigitalTwin(data) {
+      return data.keys().hasAll([
+          'sourceRunIds', 'sourceRunCount', 'baselineRunId', 'latestRunId',
+          'accuracyDelta', 'reactionTimeDelta', 'completeTrialLogCount',
+          'consistentTrialCount', 'observationStart', 'observationEnd',
+          'updatedAt', 'schemaVersion', 'dataProvenance', 'trialCount',
+          'targetCount', 'nonTargetCount', 'responseCount', 'hitCount', 'missCount',
+          'falseAlarmCount', 'correctRejectionCount', 'accuracyPercent',
+          'meanHitReactionTimeMs', 'validReactionTimeCount', 'hitReactionTimeTotalMs'
+        ])
+        && data.keys().hasOnly([
+          'sourceRunIds', 'sourceRunCount', 'baselineRunId', 'latestRunId',
+          'accuracyDelta', 'reactionTimeDelta', 'completeTrialLogCount',
+          'consistentTrialCount', 'observationStart', 'observationEnd',
+          'updatedAt', 'schemaVersion', 'dataProvenance', 'trialCount',
+          'targetCount', 'nonTargetCount', 'responseCount', 'hitCount', 'missCount',
+          'falseAlarmCount', 'correctRejectionCount', 'accuracyPercent',
+          'meanHitReactionTimeMs', 'validReactionTimeCount', 'hitReactionTimeTotalMs'
+        ])
+        && data.sourceRunIds is list
+        && data.sourceRunIds.size() <= 12
+        && data.sourceRunCount == data.sourceRunIds.size()
+        && data.sourceRunCount is int
+        && data.sourceRunCount >= 0
+        && data.completeTrialLogCount is int
+        && data.completeTrialLogCount >= 0
+        && data.completeTrialLogCount <= data.sourceRunCount
+        && data.consistentTrialCount is bool
+        && (data.baselineRunId == null || data.baselineRunId is string)
+        && (data.latestRunId == null || data.latestRunId is string)
+        && validOptionalMetric(data.accuracyDelta, -100, 100)
+        && validOptionalMetric(data.reactionTimeDelta, -1200, 1200)
+        && (data.observationStart == null || data.observationStart is timestamp)
+        && (data.observationEnd == null || data.observationEnd is timestamp)
+        && data.updatedAt is timestamp
+        && data.schemaVersion == 1
+        && data.dataProvenance == 'frontend-cpt-demo-v1'
+        && data.trialCount is int && data.trialCount >= 0
+        && data.targetCount is int && data.targetCount >= 0
+        && data.nonTargetCount is int && data.nonTargetCount >= 0
+        && data.responseCount is int && data.responseCount >= 0
+        && data.hitCount is int && data.hitCount >= 0
+        && data.missCount is int && data.missCount >= 0
+        && data.falseAlarmCount is int && data.falseAlarmCount >= 0
+        && data.correctRejectionCount is int && data.correctRejectionCount >= 0
+        && data.trialCount <= 288
+        && data.targetCount <= 72
+        && data.nonTargetCount <= 216
+        && data.responseCount <= 288
+        && data.hitCount <= 72
+        && data.missCount <= 72
+        && data.falseAlarmCount <= 216
+        && data.correctRejectionCount <= 216
+        && data.targetCount + data.nonTargetCount == data.trialCount
+        && data.hitCount + data.missCount == data.targetCount
+        && data.falseAlarmCount + data.correctRejectionCount == data.nonTargetCount
+        && data.responseCount == data.hitCount + data.falseAlarmCount
+        && validOptionalMetric(data.accuracyPercent, 0, 100)
+        && validOptionalMetric(data.meanHitReactionTimeMs, 0, 1200)
+        && data.validReactionTimeCount is int
+        && data.validReactionTimeCount >= 0
+        && data.validReactionTimeCount <= data.hitCount
+        && data.hitReactionTimeTotalMs is int
+        && data.hitReactionTimeTotalMs >= 0
+        && data.hitReactionTimeTotalMs <= data.validReactionTimeCount * 1200;
+    }
+
+    match /users/{uid} {
+      allow get: if signedInAs(uid);
+      allow list: if false;
+
+      allow create: if signedInAs(uid)
+        && request.resource.data.keys().hasAll([
+          'uid', 'displayName', 'role', 'cloudSyncEnabled', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'displayName', 'role', 'cloudSyncEnabled', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.role == 'participant'
+        && request.resource.data.cloudSyncEnabled == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if signedInAs(uid)
+        && request.resource.data.keys().hasAll([
+          'uid', 'displayName', 'role', 'cloudSyncEnabled', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'displayName', 'role', 'cloudSyncEnabled', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 1
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.role == 'participant'
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.cloudSyncEnabled is bool
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+
+      match /appSessions/{sessionId} {
+        allow get, list: if signedInAs(uid);
+        allow create: if syncEnabled(uid)
+          && validApplicationSession(request.resource.data, sessionId);
+        allow update, delete: if false;
+      }
+
+      match /activityRuns/{runId} {
+        allow get, list: if signedInAs(uid);
+        allow create: if syncEnabled(uid)
+          && validCptSummary(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      match /reports/{reportId} {
+        allow get, list: if signedInAs(uid);
+        allow create: if syncEnabled(uid)
+          && validReport(request.resource.data, reportId);
+        allow update, delete: if false;
+      }
+
+      match /digitalTwin/{snapshotId} {
+        allow get: if signedInAs(uid) && snapshotId == 'current';
+        allow list: if false;
+        allow create, update: if syncEnabled(uid)
+          && snapshotId == 'current'
+          && request.resource.data.updatedAt == request.time
+          && validDigitalTwin(request.resource.data);
+        allow delete: if false;
+      }
+    }
+  }
+}
