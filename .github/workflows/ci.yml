@@ -29,6 +29,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - name: Dependency audit (production dependencies, high severity and above)
+        run: npm audit --omit=dev --audit-level=high
       - run: npm test
       - name: Build (default demo provider; no secrets needed)
         run: npm run build
@@ -51,6 +53,8 @@ jobs:
       - run: ruff check app tests
       - run: ruff format --check app tests
       - run: python -m compileall -q app tests
+      - name: Container image builds (not pushed)
+        run: docker build -t attune-api:ci .
       # Firestore emulator needs a JDK >= 21 and Node (firebase-tools).
       - uses: actions/setup-java@v4
         with:

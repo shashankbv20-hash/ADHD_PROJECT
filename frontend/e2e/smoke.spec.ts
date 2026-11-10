@@ -41,6 +41,22 @@ test.describe("public pages", () => {
     await expect(page.getByRole("button", { name: /demo researcher/i })).toBeVisible();
   });
 
+  test("pages carry baseline security headers and do not block Firebase popups", async ({ page }) => {
+    for (const route of ["/", "/login", "/participant"]) {
+      const response = await page.goto(route);
+      const headers = response?.headers() ?? {};
+
+      expect(headers["x-content-type-options"]).toBe("nosniff");
+      expect(headers["x-frame-options"]).toBe("DENY");
+      expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+      expect(headers["permissions-policy"]).toContain("camera=()");
+      expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+      expect(headers["x-powered-by"]).toBeUndefined();
+      // A COOP header would break signInWithPopup, so it must not be set.
+      expect(headers["cross-origin-opener-policy"]).toBeUndefined();
+    }
+  });
+
   test("register page renders", async ({ page }) => {
     const response = await page.goto("/register");
     expect(response?.status()).toBe(200);

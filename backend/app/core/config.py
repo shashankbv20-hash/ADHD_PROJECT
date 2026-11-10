@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     firestore_database_id: str = "(default)"
     cors_origins: str = "http://localhost:3000"
     log_level: str = "INFO"
+    # Hardening (see app/core/hardening.py). A limit of 0 disables that limiter.
+    max_request_bytes: int = 262_144
+    rate_limit_per_minute: int = 240  # per authenticated caller
+    rate_limit_ip_per_minute: int = 600  # per client address
+    # Trust X-Forwarded-For for the client address. Enable ONLY behind a proxy that overwrites it.
+    trust_proxy_headers: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:

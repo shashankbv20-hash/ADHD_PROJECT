@@ -70,6 +70,14 @@ ruff check app tests
 ruff format --check app tests
 ```
 
+### Hardening and deployment
+
+The API refuses oversized request bodies (413), rate-limits callers (429 with `Retry-After`),
+and sets security headers on every response; see `app/core/hardening.py`, the settings in
+`.env.example`, and `../docs/deployment.md` for configuration, the container (`Dockerfile`)
+and the pre-launch checklist. The rate limiter is per instance, so add an edge limiter when
+running more than one.
+
 ### Firestore emulator tests
 
 Every API and repository test also runs against the real Firestore Admin

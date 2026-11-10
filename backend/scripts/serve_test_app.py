@@ -50,7 +50,13 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
 
-    settings = Settings(firebase_project_id="demo-contract-tests", cors_origins="http://localhost:3000")
+    # Rate limiting is off: the contract suite makes hundreds of requests as the same fake users.
+    settings = Settings(
+        firebase_project_id="demo-contract-tests",
+        cors_origins="http://localhost:3000",
+        rate_limit_per_minute=0,
+        rate_limit_ip_per_minute=0,
+    )
     app = create_app(settings, token_verifier=fake_token_verifier, repository=InMemoryRepository())
     # Loopback only: never bind a fake-auth server to a reachable interface.
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")

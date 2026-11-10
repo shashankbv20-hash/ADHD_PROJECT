@@ -17,6 +17,7 @@ from app.auth.dependencies import TokenVerifier
 from app.auth.firebase import verify_firebase_id_token
 from app.core.config import Settings, get_settings
 from app.core.errors import ApiError
+from app.core.hardening import HardeningMiddleware
 from app.core.logging_config import configure_logging
 from app.repositories.firestore import FirestoreRepository, Repository
 from app.services.catalog import seed_catalog
@@ -95,6 +96,17 @@ def create_app(
             duration_ms,
         )
         return response
+
+    # Added after the logging/CORS middleware so it is outermost: oversized and rate-limited
+    # requests are refused before any other work, and every response gets security headers.
+    app.add_middleware(
+        HardeningMiddleware,
+        max_request_bytes=settings.max_request_bytes,
+        rate_limit_per_minute=settings.rate_limit_per_minute,
+        rate_limit_ip_per_minute=settings.rate_limit_ip_per_minute,
+        trust_proxy_headers=settings.trust_proxy_headers,
+        hsts=settings.environment.lower() == "production",
+    )
 
     @app.exception_handler(ApiError)
     async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
