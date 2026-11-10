@@ -226,3 +226,57 @@ def test_full_cpt_flow_with_real_tokens_and_cross_user_isolation(real_auth_clien
         assert listed.status_code in (200, 403)
         if listed.status_code == 200:
             assert listed.json()["items"] == []
+
+
+def test_set_role_tool_grants_a_caregiver_who_can_then_see_a_shared_subject(real_auth_client):
+    """The administrator tool is the trusted path to a caregiver role; exercise it for real."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    _, client = real_auth_client
+    script = Path(__file__).resolve().parent.parent / "scripts" / "set_role.py"
+    owner_token, _ = _sign_up(_unique_email("owner"))
+    caregiver_email = _unique_email("caregiver")
+    caregiver_token, caregiver_uid = _sign_up(caregiver_email)
+
+    def run_tool(*extra: str):
+        return subprocess.run(
+            [sys.executable, str(script), "--project", EMULATOR_PROJECT_ID, "--uid", caregiver_uid, *extra],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+    # Without --yes it must refuse and change nothing.
+    refused = run_tool("--role", "caregiver")
+    assert refused.returncode == 2
+    assert client.get("/api/v1/users/me", headers=_bearer(caregiver_token)).json()["role"] == "participant"
+
+    granted = run_tool("--role", "caregiver", "--yes")
+    assert granted.returncode == 0, granted.stderr
+    caregiver = _bearer(_sign_in(caregiver_email))  # a fresh token carries the new claim
+    assert client.get("/api/v1/users/me", headers=caregiver).json()["role"] == "caregiver"
+
+    # The owner shares a subject by the caregiver's ID; the caregiver sees it, read-only.
+    owner = _bearer(owner_token)
+    client.get("/api/v1/users/me", headers=owner)
+    subject = _create_subject(client, owner)
+    share = client.post(
+        f"/api/v1/subjects/{subject['id']}/caregivers",
+        headers=owner,
+        json={"caregiverFirebaseUid": caregiver_uid},
+    )
+    assert share.status_code == 201, share.text
+    shared = client.get("/api/v1/caregiver/subjects", headers=caregiver).json()["items"]
+    assert [item["subjectId"] for item in shared] == [subject["id"]]
+    assert client.get(f"/api/v1/subjects/{subject['id']}/export", headers=caregiver).status_code == 404
+
+    # The tool can also remove the role again.
+    removed = run_tool("--role", "participant", "--yes")
+    assert removed.returncode == 0, removed.stderr
+    assert (
+        client.get("/api/v1/users/me", headers=_bearer(_sign_in(caregiver_email))).json()["role"]
+        == "participant"
+    )

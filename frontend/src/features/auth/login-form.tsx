@@ -5,6 +5,7 @@ import {
   Eye,
   EyeOff,
   FlaskConical,
+  HeartHandshake,
   LoaderCircle,
   LogOut,
   ShieldCheck,
@@ -33,9 +34,11 @@ import {
 import { useDemoAuth } from "@/features/auth/demo-auth-provider";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
 import {
+  isDemoPortalRole,
   isPortalRole,
   portalLabels,
   portalRoutes,
+  type DemoPortalRole,
   type PortalRole,
 } from "@/features/auth/portal-role";
 import { demoProfiles } from "@/lib/demo/demo-session";
@@ -60,6 +63,12 @@ const roleOptions: Array<{
     description: "Your EEG sessions, activities, and Digital Twin.",
   },
   {
+    id: "caregiver",
+    icon: HeartHandshake,
+    title: "Caregiver",
+    description: "Read-only progress shared with you by a participant.",
+  },
+  {
     id: "clinician",
     icon: Stethoscope,
     title: "Clinician",
@@ -72,6 +81,11 @@ const roleOptions: Array<{
     description: "Models, datasets, and research experiments.",
   },
 ];
+
+// Demo accounts exist only for roles that have synthetic data; there is no demo caregiver.
+const demoRoleOptions = roleOptions.filter(
+  (option): option is (typeof roleOptions)[number] & { id: DemoPortalRole } => isDemoPortalRole(option.id),
+);
 
 function readPendingRole(): PortalRole | null {
   if (typeof window === "undefined") {
@@ -133,7 +147,7 @@ export function LoginForm() {
   const [resetMessage, setResetMessage] = useState<string>();
   const [resetBusy, setResetBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
-  const [demoBusy, setDemoBusy] = useState<PortalRole | null>(null);
+  const [demoBusy, setDemoBusy] = useState<DemoPortalRole | null>(null);
   const [accessDenied, setAccessDenied] = useState<AccessDenied | null>(null);
   const shownAuthError =
     authError ??
@@ -317,7 +331,7 @@ export function LoginForm() {
     }
   }
 
-  async function handleDemoSignIn(role: PortalRole) {
+  async function handleDemoSignIn(role: DemoPortalRole) {
     if (busy) {
       return;
     }
@@ -513,7 +527,7 @@ export function LoginForm() {
         <p className="mt-1 text-xs leading-5 text-ink-subtle">
           Your account&apos;s verified role controls which portal opens.
         </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {roleOptions.map((option) => {
             const Icon = option.icon;
             const selected = selectedRole === option.id;
@@ -720,7 +734,7 @@ export function LoginForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 px-4 pb-4 pt-0">
-          {roleOptions.map((option) => {
+          {demoRoleOptions.map((option) => {
             const profile = demoProfiles[option.id];
             const Icon = option.icon;
             const entering = demoBusy === option.id;

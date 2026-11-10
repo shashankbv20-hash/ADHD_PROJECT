@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useDemoAuth } from "@/features/auth/demo-auth-provider";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
-import { portalLabels, type PortalRole } from "@/features/auth/portal-role";
+import { portalLabels, type DemoPortalRole } from "@/features/auth/portal-role";
 import { demoProfiles } from "@/lib/demo/demo-session";
 
 function SidebarPanel({
@@ -41,7 +41,7 @@ function SidebarPanel({
   onNavigate: () => void;
   providerMode: "demo" | "remote" | "firebase" | "invalid";
   firebaseDisplayName: string | null;
-  demoRole: PortalRole | null;
+  demoRole: DemoPortalRole | null;
   onExitDemo: () => void;
 }) {
   const isDemoProvider = providerMode === "demo";
@@ -231,7 +231,7 @@ export function AppShell({
 }: {
   children: ReactNode;
   providerMode: "demo" | "remote" | "firebase" | "invalid";
-  demoRole?: PortalRole | null;
+  demoRole?: DemoPortalRole | null;
 }) {
   const auth = useFirebaseAuth();
   const demo = useDemoAuth();

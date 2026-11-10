@@ -76,6 +76,15 @@ object storage; raw EEG and webcam video are not put into Firestore.
   History now lives in `subjects/{id}/digitalTwinHistory/{historyId}`; the
   in-memory repository now rejects invalid path shapes. No live data existed
   at the old path.
+- Caregiver sharing (`tests/test_caregiver.py`, 9 tests; `tests/test_set_role.py`,
+  7 tests) run on the in-memory repository: **56 passed + 7 role-tool tests**, with the
+  emulator parametrizations skipped. The role tool and a real-token caregiver flow
+  (`test_auth_emulator.py`, now 7 tests) pass against the Auth emulator. The new
+  `GET /caregiver/subjects` endpoint lets a caregiver discover the relationship ID
+  they need to stop viewing (previously impossible). The tests also found that
+  `GET /subjects/{id}/caregivers` returned 500 for every owner (the stored record
+  has an extra `granted_by_user_id` field the strict response model rejects); it now
+  returns only the declared fields.
 - Data rights (`tests/test_data_rights.py`, 9 tests) and `tests/test_checkins.py`
   (6 tests) run on the in-memory repository: **47 passed, 48 skipped** (the
   skipped ones are the emulator parametrizations). **The new erasure path

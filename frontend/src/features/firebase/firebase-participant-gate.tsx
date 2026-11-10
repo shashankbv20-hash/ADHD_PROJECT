@@ -11,6 +11,7 @@ import {
   FirebaseDirectActivityProvider,
 } from "@/features/backend/activity-providers";
 import { BackendSyncProvider } from "@/features/backend/backend-sync-provider";
+import { CaregiverProvider } from "@/features/caregiver/caregiver-provider";
 import { getFrontendConfig } from "@/lib/config/frontend-config";
 import {
   portalLabels,
@@ -134,6 +135,9 @@ export function FirebaseParticipantGate({
   const auth = useFirebaseAuth();
   const pathname = usePathname();
   const [actionError, setActionError] = useState<string | null>(null);
+  const config = getFrontendConfig();
+  const apiBaseUrl = config.valid ? config.apiBaseUrl : null;
+  const caregiverRoute = pathname.startsWith("/caregiver");
   const staffRoute: PortalRole | null = pathname.startsWith("/clinician")
     ? "clinician"
     : pathname.startsWith("/research")
@@ -164,6 +168,42 @@ export function FirebaseParticipantGate({
 
   if (auth.status === "signed-out" || !auth.user) {
     return <FirebaseSignedOut />;
+  }
+
+  if (caregiverRoute) {
+    if (!auth.authorizedRole) {
+      return (
+        <Alert tone="warning" title="Caregiver role could not be verified">
+          The account is signed in, but its role claim is unavailable. Nothing is shown. Sign out and
+          try again.
+        </Alert>
+      );
+    }
+
+    if (auth.authorizedRole !== "caregiver") {
+      return (
+        <FirebasePortalMismatch
+          requested="caregiver"
+          authorized={auth.authorizedRole}
+          actionError={actionError}
+          onSignOut={signOut}
+        />
+      );
+    }
+
+    if (!apiBaseUrl) {
+      return (
+        <Alert tone="info" title="Caregiver access needs the research backend">
+          This build is not connected to the research backend, so there is nothing to show.
+        </Alert>
+      );
+    }
+
+    return (
+      <CaregiverProvider key={auth.user.uid} user={auth.user} baseUrl={apiBaseUrl}>
+        {children}
+      </CaregiverProvider>
+    );
   }
 
   if (staffRoute) {
@@ -197,6 +237,7 @@ export function FirebaseParticipantGate({
   }
 
   if (
+    auth.authorizedRole === "caregiver" ||
     auth.authorizedRole === "clinician" ||
     auth.authorizedRole === "researcher"
   ) {
@@ -316,9 +357,6 @@ export function FirebaseParticipantGate({
 
   // With an API base URL, CPT runs are saved through the backend (after explicit
   // consent) instead of directly to Firestore. Never both for the same operation.
-  const config = getFrontendConfig();
-  const apiBaseUrl = config.valid ? config.apiBaseUrl : null;
-
   if (apiBaseUrl) {
     return (
       <BackendSyncProvider key={auth.user.uid} user={auth.user} baseUrl={apiBaseUrl}>

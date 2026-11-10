@@ -147,6 +147,13 @@ test.describe("participant journeys", () => {
     await expect(page.getByRole("button", { name: /erase|download my data/i })).toHaveCount(0);
   });
 
+  test("there is no demo caregiver: caregiver access needs the research backend", async ({ page }) => {
+    await page.goto("/caregiver");
+    await expect(page.getByText("Not connected to the research backend")).toBeVisible();
+    await page.goto("/login");
+    await expect(page.getByRole("button", { name: /demo caregiver/i })).toHaveCount(0);
+  });
+
   test("the navigation links to Data & privacy", async ({ page }) => {
     await enterDemo(page, "participant");
     await page.goto("/participant");

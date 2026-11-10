@@ -201,6 +201,23 @@ export interface DataErasureResult {
   deletedDocumentCounts: Record<string, number>;
 }
 
+export interface BackendCaregiverRelationship {
+  id: string;
+  caregiverUserId: string;
+  subjectId: string;
+  status: "active" | "revoked";
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+/** A subject shared with the signed-in caregiver. The owner's identity is not included. */
+export interface BackendSharedSubject {
+  subjectId: string;
+  displayLabel: string | null;
+  relationshipId: string;
+  sharedSince: string | null;
+}
+
 export interface BackendCapabilities {
   apiVersion: string;
   firestore: { configured: boolean };

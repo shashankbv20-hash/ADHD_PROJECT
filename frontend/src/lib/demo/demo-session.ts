@@ -1,7 +1,7 @@
 import {
-  isPortalRole,
+  isDemoPortalRole,
   portalRoutes,
-  type PortalRole,
+  type DemoPortalRole,
 } from "@/features/auth/portal-role";
 
 export const DEMO_ROLE_COOKIE = "attune_demo_role";
@@ -15,7 +15,7 @@ export interface DemoProfile {
   href: string;
 }
 
-export const demoProfiles: Record<PortalRole, DemoProfile> = {
+export const demoProfiles: Record<DemoPortalRole, DemoProfile> = {
   participant: {
     name: "Demo Participant",
     detail: "Synthetic participant records · no credentials",
@@ -50,12 +50,12 @@ function readCookie(name: string): string | null {
   return entry ? decodeURIComponent(entry.slice(prefix.length)) : null;
 }
 
-export function readDemoRoleCookie(): PortalRole | null {
+export function readDemoRoleCookie(): DemoPortalRole | null {
   const value = readCookie(DEMO_ROLE_COOKIE);
-  return isPortalRole(value) ? value : null;
+  return isDemoPortalRole(value) ? value : null;
 }
 
-export function writeDemoRoleCookie(role: PortalRole): void {
+export function writeDemoRoleCookie(role: DemoPortalRole): void {
   if (typeof document === "undefined") {
     return;
   }

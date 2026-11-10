@@ -336,3 +336,16 @@ class DataErasureResult(ApiModel):
     erased_at: datetime
     withdrawn_consent_count: int
     deleted_document_counts: dict[str, int]
+
+
+class SharedSubjectRead(ApiModel):
+    """A subject shared with the calling caregiver. Deliberately omits the owner's identifier."""
+
+    subject_id: UUID
+    display_label: str | None
+    relationship_id: UUID
+    shared_since: datetime | None
+
+
+class SharedSubjectList(ApiModel):
+    items: list[SharedSubjectRead]

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CPT_SCORED_TRIALS } from "@/features/activities/cpt/cpt-config";
 import { buildCptRunSummary, createCptTrialEvent } from "@/features/activities/cpt/scoring";
 import { createBackendClient } from "@/lib/backend/client";
+import { createCaregiverSharing, createCaregiverViewer } from "@/lib/backend/caregiver";
 import {
   ConsentRequiredError,
   createBackendSyncController,
@@ -332,5 +333,109 @@ describe.skipIf(!baseUrl)("frontend client against the real backend", () => {
     );
     expect(outcome.serverRunId).toBeTruthy();
     expect((await controller.load()).serverRuns).toHaveLength(1);
+  });
+
+  // ---- Caregiver sharing (state here: consent granted, 1 saved run after the erasure above) ----
+
+  describe("caregiver sharing", () => {
+    const caregiverId = "caregiver-test-uid";
+    const caregiverClient = createBackendClient({
+      baseUrl: baseUrl as string,
+      getIdToken: async () => "caregiver-token",
+    });
+    const viewer = createCaregiverViewer(caregiverClient);
+    const sharing = createCaregiverSharing(client);
+
+    it("a caregiver has nothing shared until the participant chooses to share", async () => {
+      await caregiverClient.getMe(); // first sign-in provisions the caregiver account
+      expect(await viewer.listShared()).toEqual([]);
+    });
+
+    it("rejects an unknown or non-caregiver ID with a clear error", async () => {
+      const subjectId = (await controller.load()).subjectId as string;
+
+      await expect(sharing.share(subjectId, "no-such-caregiver-id")).rejects.toMatchObject({
+        backendCode: "caregiver_not_found",
+      });
+      await expect(sharing.share(subjectId, participantId)).rejects.toMatchObject({
+        backendCode: "caregiver_not_found",
+      });
+    });
+
+    it("the participant shares by the caregiver's ID and the caregiver sees a read-only view", async () => {
+      const subjectId = (await controller.load()).subjectId as string;
+
+      const share = await sharing.share(subjectId, caregiverId);
+      expect(share.active).toBe(true);
+
+      const shared = await viewer.listShared();
+      expect(shared).toHaveLength(1);
+      expect(shared[0]).toMatchObject({ subjectId, relationshipId: share.id });
+
+      const data = await viewer.loadSubject(subjectId);
+      expect(data.runs).toHaveLength(1);
+      expect(data.runs.every((run) => run.events.length === 0)).toBe(true); // summaries only
+      expect(data.twin.summaryCount).toBe(1);
+      expect(data.sessionCount).toBe(1);
+    });
+
+    it("the caregiver is refused everything beyond read-only viewing", async () => {
+      const subjectId = (await controller.load()).subjectId as string;
+
+      await expect(caregiverClient.exportSubjectData(subjectId)).rejects.toMatchObject({ status: 404 });
+      await expect(caregiverClient.listAuditEvents(subjectId)).rejects.toMatchObject({ status: 404 });
+      await expect(caregiverClient.eraseSubjectData(subjectId)).rejects.toMatchObject({ status: 404 });
+      await expect(caregiverClient.listCaregivers(subjectId)).rejects.toMatchObject({ status: 404 });
+      await expect(
+        caregiverClient.createConsent(subjectId, {
+          scope: "research",
+          version: "x",
+          idempotencyKey: "caregiver-attempt-1",
+        }),
+      ).rejects.toMatchObject({ status: 404 });
+      await expect(
+        caregiverClient.createReport(subjectId, { idempotencyKey: "caregiver-report-1" }),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("the caregiver's views show up in the participant's access log as another account", async () => {
+      const subjectId = (await controller.load()).subjectId as string;
+      await viewer.loadSubject(subjectId);
+
+      const log = await controller.loadAccessLog(subjectId);
+
+      const foreign = log.filter((entry) => !entry.byYou);
+      expect(foreign.map((entry) => entry.rawAction)).toEqual(
+        expect.arrayContaining(["digital_twin_read", "activity_summaries_read", "reports_read", "sessions_list_read"]),
+      );
+      expect(JSON.stringify(log)).not.toContain(caregiverId);
+    });
+
+    it("the participant lists the share with a masked ID, and the caregiver can leave", async () => {
+      const subjectId = (await controller.load()).subjectId as string;
+
+      const shares = await sharing.list(subjectId);
+      expect(shares).toHaveLength(1);
+      expect(shares[0].caregiverIdMasked).not.toBe(caregiverId);
+
+      const [shared] = await viewer.listShared();
+      await viewer.stopViewing(subjectId, shared.relationshipId);
+
+      expect(await viewer.listShared()).toEqual([]);
+      await expect(viewer.loadSubject(subjectId)).rejects.toMatchObject({ status: 404 });
+      expect((await sharing.list(subjectId))[0].active).toBe(false);
+    });
+
+    it("the participant can share again and it is the same relationship, then stop it themselves", async () => {
+      const subjectId = (await controller.load()).subjectId as string;
+      const [previous] = await sharing.list(subjectId);
+
+      const again = await sharing.share(subjectId, caregiverId);
+      expect(again.id).toBe(previous.id);
+      expect(await viewer.listShared()).toHaveLength(1);
+
+      await sharing.stop(subjectId, again.id);
+      expect(await viewer.listShared()).toEqual([]);
+    });
   });
 });

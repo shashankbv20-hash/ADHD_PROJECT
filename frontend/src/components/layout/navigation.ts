@@ -6,6 +6,7 @@ import {
   Fingerprint,
   FlaskConical,
   GitCompare,
+  HeartHandshake,
   History,
   LayoutDashboard,
   ListChecks,
@@ -50,6 +51,17 @@ export const workspaces: WorkspaceDefinition[] = [
       name: "Alex Morgan",
       detail: "Demo participant · ATN-0142",
       initials: "AM",
+    },
+  },
+  {
+    id: "caregiver",
+    label: "Caregiver",
+    href: "/caregiver",
+    icon: HeartHandshake,
+    demoIdentity: {
+      name: "Caregiver account",
+      detail: "Read-only access shared with you",
+      initials: "CG",
     },
   },
   {
@@ -124,6 +136,14 @@ export const navigationByWorkspace: Record<WorkspaceRole, NavItem[]> = {
       label: "Data & privacy",
       href: "/participant/data",
       icon: ShieldCheck,
+      status: "available",
+    },
+  ],
+  caregiver: [
+    {
+      label: "Shared with me",
+      href: "/caregiver",
+      icon: HeartHandshake,
       status: "available",
     },
   ],
@@ -220,6 +240,7 @@ const routeTitleOverrides = [
     prefix: "/participant/activities/history/",
     title: "CPT run summary",
   },
+  { prefix: "/caregiver/subjects/", title: "Shared participant" },
   { prefix: "/clinician/participants/", title: "Participant overview" },
   { prefix: "/research/experiments/", title: "Experiment detail" },
 ];

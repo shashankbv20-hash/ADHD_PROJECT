@@ -11,6 +11,7 @@ import {
   type CptSyncResult,
 } from "@/lib/backend/cpt-sync";
 import { exportFilename, parseAuditEvent, type AccessLogEntry } from "@/lib/backend/audit";
+import { createCaregiverSharing } from "@/lib/backend/caregiver";
 import { summaryToCptRun } from "@/lib/backend/summary-mapping";
 import {
   parseServerReport,
@@ -83,6 +84,12 @@ export function describeSyncError(error: unknown): string {
       return "The research backend could not be reached. Your result stays in this browser session; try again shortly.";
     }
     const reference = error.requestId ? ` (reference ${error.requestId})` : "";
+    if (error.backendCode === "caregiver_not_found") {
+      return "No caregiver account matches that ID. Ask the caregiver to copy it from their own Caregiver page.";
+    }
+    if (error.backendCode === "caregiver_role_required") {
+      return "This account does not have the caregiver role.";
+    }
     if (error.backendCode === "report_insufficient_data") {
       return "There are no saved runs to include in a report yet.";
     }
@@ -216,7 +223,10 @@ export function createBackendSyncController({
     return client.eraseSubjectData(subjectId);
   }
 
+  const sharing = createCaregiverSharing(client);
+
   return {
+    sharing,
     load,
     grantConsent,
     withdrawConsent,

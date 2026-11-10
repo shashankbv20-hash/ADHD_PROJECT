@@ -1,7 +1,7 @@
 import { ApiClientError, ServiceUnavailableError } from "@/lib/api-client";
 import { getFrontendConfig } from "@/lib/config/frontend-config";
 import { getDemoRole } from "@/lib/demo/demo-session-server";
-import type { PortalRole } from "@/features/auth/portal-role";
+import type { DemoPortalRole } from "@/features/auth/portal-role";
 
 export type DemoServiceLoad<Result> =
   | { available: true; data: Result }
@@ -9,7 +9,7 @@ export type DemoServiceLoad<Result> =
 
 export async function loadDemoService<Result>(
   load: () => Promise<Result>,
-  requiredRole?: PortalRole,
+  requiredRole?: DemoPortalRole,
 ): Promise<DemoServiceLoad<Result>> {
   const config = getFrontendConfig();
   const demoRole =

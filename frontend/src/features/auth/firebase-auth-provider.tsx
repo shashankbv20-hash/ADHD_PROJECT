@@ -87,7 +87,9 @@ function getSelectedProviderMode(): ProviderMode {
 }
 
 function readClaimRole(claims: Record<string, unknown>): PortalRole {
-  return claims.role === "clinician" || claims.role === "researcher"
+  return claims.role === "caregiver" ||
+    claims.role === "clinician" ||
+    claims.role === "researcher"
     ? claims.role
     : "participant";
 }

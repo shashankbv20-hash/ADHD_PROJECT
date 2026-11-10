@@ -297,7 +297,17 @@ def list_caregiver_relationships(
         subject_id=subject_id,
         details={"result_count": len(relationships)},
     )
-    return {"items": relationships}
+    # Only the declared fields: stored records also hold internal ones (e.g. granted_by_user_id),
+    # which the strict response model rejects.
+    return {
+        "items": [
+            {
+                key: relationship.get(key)
+                for key in ("id", "caregiver_user_id", "subject_id", "status", "created_at", "revoked_at")
+            }
+            for relationship in relationships
+        ]
+    }
 
 
 @router.delete("/{subject_id}/caregivers/{relationship_id}", response_model=CaregiverRelationshipRead)

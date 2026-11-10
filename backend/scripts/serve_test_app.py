@@ -29,6 +29,7 @@ from app.repositories.firestore import InMemoryRepository
 FAKE_TOKENS = {
     "participant-token": {"uid": "participant-test-uid", "name": "Synthetic Participant"},
     "other-participant-token": {"uid": "other-participant-test-uid", "name": "Other Participant"},
+    "caregiver-token": {"uid": "caregiver-test-uid", "name": "Synthetic Caregiver", "role": "caregiver"},
 }
 
 

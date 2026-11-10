@@ -40,6 +40,7 @@ same operation. No data migration or Firestore rules deployment is performed.
 | `GET` | `/api/v1/subjects/{subject_id}/activity-summaries` | Stable cursor-paginated summary history. |
 | `GET` | `/api/v1/subjects/{subject_id}/digital-twin`, `/history` | Current descriptive profile and immutable versions. |
 | `GET`, `POST` | `/api/v1/subjects/{subject_id}/reports` | Read reports or idempotently create report from persisted summaries. |
+| `GET` | `/api/v1/caregiver/subjects` | **Caregiver role only.** Subjects whose owner currently shares with the caller: subject ID, display label, `relationshipId` (needed to stop viewing) and share date. Does not include the owner's identifier. |
 | `GET` | `/api/v1/subjects/{subject_id}/export` | **Owner only.** Everything stored for the subject (consents, sessions with trial events and check-ins, summaries, Twin current + history, reports, access log). Audited. |
 | `GET` | `/api/v1/subjects/{subject_id}/audit-events` | **Owner only.** Recorded actions about the subject, newest first. Reports whether the owner performed each action (`actorIsYou`); other accounts' identifiers are never returned. Needs the `auditEvents` composite index. |
 | `POST` | `/api/v1/subjects/{subject_id}/data-erasure` | **Owner only, irreversible, idempotent.** Body `{"confirmation": "ERASE MY DATA"}`. Withdraws active consent first, then deletes sessions (with events/check-ins), summaries, Twin + history, reports and retry records. Keeps the subject, consent history and audit log; sets `data_erased_at`. |
@@ -98,6 +99,33 @@ copy or delete is performed.
 EEG model inference, webcam feature extraction and AI Buddy provider remain
 unavailable for missing model/preprocessing artifacts, approved extractor/
 policy and LLM configuration. Their capability is not simulated.
+
+## Caregiver sharing
+
+A caregiver is a Firebase account with the trusted custom claim `role: caregiver`,
+assigned by the research team with `backend/scripts/set_role.py` (the public API
+and the sign-up form can never assign roles; the tool refuses to run without
+`--yes`, preserves other claims and can revoke refresh tokens). The caregiver
+signs in once (which provisions their account), copies their **caregiver ID**
+from the Caregiver page and gives it to the participant, who enters it on the
+Data & privacy page. Nothing is shared before that.
+
+- **Read-only.** A caregiver can read the subject, progress, Digital Twin and its
+  history, summaries, reports and sessions. Export, access log, erasure, consent
+  changes, session/report creation, check-ins and sharing management are owner-only
+  and return 404 to a caregiver. Trial-level events are never exposed to caregivers.
+- **Transparent.** Every caregiver read is audited and appears in the participant's
+  access log as "another account", without the caregiver's identifier.
+- **Revocable by either side.** The owner or the caregiver can end a share;
+  re-sharing reuses the same relationship record. Revocation takes effect on the
+  next request.
+- **Not affected by erasure.** Erasure deletes research data; the share remains
+  but there is then nothing to see.
+
+Frontend: `/caregiver` (own ID with copy, what access includes, participants
+sharing with them, "stop viewing") and `/caregiver/subjects/{id}` (Twin summary,
+saved-run summaries, reports). There is no demo caregiver (sharing is a real choice).
+Participants manage sharing from the Data & privacy page.
 
 ## Data rights (export, access log, erasure)
 

@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import type { PortalRole } from "@/features/auth/portal-role";
+import type { DemoPortalRole } from "@/features/auth/portal-role";
 import {
   clearDemoRoleCookie,
   DEMO_SESSION_EVENT,
@@ -17,9 +17,9 @@ import {
 } from "@/lib/demo/demo-session";
 
 interface DemoAuthContextValue {
-  demoRole: PortalRole | null;
+  demoRole: DemoPortalRole | null;
   ready: boolean;
-  enterDemoSession: (role: PortalRole) => void;
+  enterDemoSession: (role: DemoPortalRole) => void;
   exitDemoSession: () => void;
 }
 
@@ -42,7 +42,7 @@ export function DemoAuthProvider({ children }: { children: ReactNode }) {
     () => null,
   );
 
-  const enterDemoSession = useCallback((role: PortalRole) => {
+  const enterDemoSession = useCallback((role: DemoPortalRole) => {
     writeDemoRoleCookie(role);
   }, []);
 

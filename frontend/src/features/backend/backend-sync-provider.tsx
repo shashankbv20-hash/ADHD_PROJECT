@@ -19,6 +19,7 @@ import {
   type PersistOutcome,
 } from "@/lib/backend/sync-controller";
 import type { AccessLogEntry } from "@/lib/backend/audit";
+import type { CaregiverShare } from "@/lib/backend/caregiver";
 import type { ServerReportView, ServerTwinHistoryEntry, ServerTwinView } from "@/lib/backend/twin";
 import type { BackendSession, DataErasureResult } from "@/lib/backend/types";
 import type { CptRunSummary } from "@/types";
@@ -46,6 +47,10 @@ interface BackendSyncContextValue {
   loadAccessLog: () => Promise<AccessLogEntry[]>;
   /** Irreversible; the caller must have collected the typed confirmation first. */
   eraseData: () => Promise<DataErasureResult>;
+  /** Caregiver sharing (owner only). Each throws an Error with user-safe wording on failure. */
+  listCaregivers: () => Promise<CaregiverShare[]>;
+  shareWithCaregiver: (caregiverId: string) => Promise<CaregiverShare>;
+  stopSharing: (relationshipId: string) => Promise<CaregiverShare>;
   /** True while a consent grant or withdrawal is in flight. */
   consentBusy: boolean;
   /** User-safe message for the last consent action failure. */
@@ -219,6 +224,48 @@ export function BackendSyncProvider({
     return result;
   }, [controller, refresh, subjectId]);
 
+  const listCaregivers = useCallback(async () => {
+    if (!subjectId) {
+      return [];
+    }
+
+    try {
+      return await controller.sharing.list(subjectId);
+    } catch (error) {
+      throw new Error(describeSyncError(error), { cause: error });
+    }
+  }, [controller, subjectId]);
+
+  const shareWithCaregiver = useCallback(
+    async (caregiverId: string) => {
+      if (!subjectId) {
+        throw new Error("Grant research consent first; there is nothing to share yet.");
+      }
+
+      try {
+        return await controller.sharing.share(subjectId, caregiverId);
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, subjectId],
+  );
+
+  const stopSharing = useCallback(
+    async (relationshipId: string) => {
+      if (!subjectId) {
+        throw new Error("There is nothing shared yet.");
+      }
+
+      try {
+        return await controller.sharing.stop(subjectId, relationshipId);
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, subjectId],
+  );
+
   const persistRun = useCallback(
     async (run: CptRunSummary) => {
       let outcome: PersistOutcome;
@@ -253,6 +300,9 @@ export function BackendSyncProvider({
       exportData,
       loadAccessLog,
       eraseData,
+      listCaregivers,
+      shareWithCaregiver,
+      stopSharing,
       consentBusy,
       consentError,
       grantConsent,
@@ -271,6 +321,9 @@ export function BackendSyncProvider({
       exportData,
       loadAccessLog,
       eraseData,
+      listCaregivers,
+      shareWithCaregiver,
+      stopSharing,
       consentBusy,
       consentError,
       grantConsent,

@@ -3,6 +3,8 @@ import type {
   BackendActivitySummary,
   BackendActivitySummaryPage,
   BackendAuditEvent,
+  BackendCaregiverRelationship,
+  BackendSharedSubject,
   BackendCapabilities,
   BackendConsent,
   BackendCptEvent,
@@ -143,6 +145,17 @@ export function createBackendClient({
       request<{ items: BackendDigitalTwinHistoryItem[] }>(
         `subjects/${subjectId}/digital-twin/history`,
       ),
+
+    // Caregiver sharing. The owner manages shares; a caregiver lists and can leave them.
+    listCaregivers: (subjectId: string) =>
+      request<{ items: BackendCaregiverRelationship[] }>(`subjects/${subjectId}/caregivers`),
+    grantCaregiver: (subjectId: string, caregiverFirebaseUid: string) =>
+      post<BackendCaregiverRelationship>(`subjects/${subjectId}/caregivers`, { caregiverFirebaseUid }),
+    revokeCaregiver: (subjectId: string, relationshipId: string) =>
+      request<BackendCaregiverRelationship>(`subjects/${subjectId}/caregivers/${relationshipId}`, {
+        method: "DELETE",
+      }),
+    listSharedSubjects: () => request<{ items: BackendSharedSubject[] }>("caregiver/subjects"),
 
     // Data rights (owner only).
     exportSubjectData: (subjectId: string) =>

@@ -10,11 +10,11 @@ import { useDemoAuth } from "@/features/auth/demo-auth-provider";
 import {
   portalLabels,
   portalRoutes,
-  type PortalRole,
+  type DemoPortalRole,
 } from "@/features/auth/portal-role";
 import { demoProfiles } from "@/lib/demo/demo-session";
 
-function isRouteForRole(pathname: string, role: PortalRole): boolean {
+function isRouteForRole(pathname: string, role: DemoPortalRole): boolean {
   const route = portalRoutes[role];
   return pathname === route || pathname.startsWith(`${route}/`);
 }
@@ -23,7 +23,7 @@ export function DemoPortalGate({
   role,
   children,
 }: {
-  role: PortalRole;
+  role: DemoPortalRole;
   children: ReactNode;
 }) {
   const pathname = usePathname();

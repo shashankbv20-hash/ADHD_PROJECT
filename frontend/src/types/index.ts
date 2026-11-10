@@ -1,4 +1,4 @@
-export type WorkspaceRole = "participant" | "clinician" | "researcher";
+export type WorkspaceRole = "participant" | "caregiver" | "clinician" | "researcher";
 
 export interface DemoMeta {
   isDemo: true;
