@@ -22,12 +22,14 @@ export function CptRunDetailView({ runId }: { runId: string }) {
   const {
     cptRuns,
     storageMode,
+    persistenceTarget,
     cloudSyncEnabled,
     persistenceStatus,
     persistenceMessage,
   } = useActivitySessions();
   const auth = useFirebaseAuth();
   const isFirebase = storageMode === "firebase";
+  const toBackend = isFirebase && persistenceTarget === "backend";
   const run = cptRuns.find((candidate) => candidate.id === runId);
 
   if (!run) {
@@ -90,7 +92,9 @@ export function CptRunDetailView({ runId }: { runId: string }) {
         eyebrow="Participant workspace"
         title="CPT run summary"
         description={
-          isFirebase
+          toBackend
+            ? "Summary metrics from this participant's scored CPT run, calculated by the research backend from the validated trial events."
+            : isFirebase
             ? "Calculated summary metrics from this participant's scored CPT demonstration. Trial-by-trial events are not stored in Firebase."
             : "Calculated metrics and trial-by-trial events from a scored Continuous Performance Task run stored in memory. This is a demo record, not a clinical result."
         }
@@ -127,7 +131,13 @@ export function CptRunDetailView({ runId }: { runId: string }) {
         }
       />
 
-      {isFirebase ? (
+      {toBackend ? (
+        <Alert tone="info" title="Research backend record">
+          {run.events.length < run.trialCount
+            ? "This summary was calculated by the research backend. The backend keeps the trial events; only summary values are shown here."
+            : "This browser run includes trial details locally. With research consent, the backend stores the trial events and calculates the saved summary."}
+        </Alert>
+      ) : isFirebase ? (
         <Alert tone="info" title="Firebase activity summary">
           {run.events.length < run.trialCount
             ? "This account record contains summary metrics only. Raw trial events and response timelines were not uploaded."
@@ -156,8 +166,9 @@ export function CptRunDetailView({ runId }: { runId: string }) {
         cloudSyncEnabled={cloudSyncEnabled}
         persistenceStatus={persistenceStatus}
         persistenceMessage={persistenceMessage}
+        persistenceTarget={persistenceTarget}
         onSaveReport={
-          isFirebase && cloudSyncEnabled
+          isFirebase && cloudSyncEnabled && !toBackend
             ? () => auth.saveReportSummary(run)
             : undefined
         }

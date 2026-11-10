@@ -59,7 +59,15 @@ describe.skipIf(!baseUrl)("frontend client against the real backend", () => {
 
   it("a new participant has no subject, no consent and no runs, and loading creates nothing", async () => {
     const before = await controller.load();
-    expect(before).toEqual({ subjectId: null, consent: { status: "none" }, serverRuns: [] });
+    expect(before).toEqual({
+      subjectId: null,
+      consent: { status: "none" },
+      serverRuns: [],
+      twin: null,
+      twinHistory: [],
+      reports: [],
+      sessions: [],
+    });
     expect((await client.listSubjects()).items).toHaveLength(0);
   });
 
@@ -130,6 +138,63 @@ describe.skipIf(!baseUrl)("frontend client against the real backend", () => {
     expect(twin.version).toBeGreaterThanOrEqual(1);
   });
 
+  it("the parsed server Digital Twin matches what the backend actually returned", async () => {
+    const snapshot = await controller.load();
+    const twin = snapshot.twin;
+
+    expect(twin).not.toBeNull();
+    expect(twin).toMatchObject({ status: "available", summaryCount: 2, version: 2 });
+    // Real values (not just shapes): proves the snake_case profile keys are read correctly.
+    expect(twin?.metrics?.summaryCount).toBe(2);
+    expect(twin?.metrics?.trialCount).toBe(48);
+    expect(typeof twin?.metrics?.accuracyPercent).toBe("number");
+    expect(typeof twin?.metrics?.meanHitReactionTimeMs).toBe("number");
+    expect(typeof twin?.accuracyDeltaPoints).toBe("number");
+    expect(typeof twin?.meanHitReactionTimeDeltaMs).toBe("number");
+    expect(twin?.baselineAt).toBeTruthy();
+    expect(twin?.latestAt).toBeTruthy();
+    expect(twin?.observationStart).toBeTruthy();
+    expect(twin?.dataProvenance).toBeTruthy();
+  });
+
+  it("keeps an immutable, versioned Twin history", async () => {
+    const snapshot = await controller.load();
+
+    expect(snapshot.twinHistory.map((entry) => entry.version)).toEqual([2, 1]);
+    expect(snapshot.twinHistory.map((entry) => entry.sourceCount)).toEqual([2, 1]);
+    expect(snapshot.twinHistory[0].algorithmVersion).toBeTruthy();
+  });
+
+  it("lists the saved sessions with their activity and mode", async () => {
+    const snapshot = await controller.load();
+
+    expect(snapshot.sessions).toHaveLength(2);
+    for (const session of snapshot.sessions) {
+      expect(session.status).toBe("completed");
+      expect(session.activities).toHaveLength(1);
+      expect(session.activities[0]).toMatchObject({ activityCode: "cpt", mode: "scored", status: "completed" });
+    }
+    // Run IDs used by the UI are the activity assignment IDs, so history links resolve.
+    const assignmentIds = snapshot.sessions.map((session) => session.activities[0].id).sort();
+    expect(snapshot.serverRuns.map((run) => run.id).sort()).toEqual(assignmentIds);
+  });
+
+  it("creates a report from saved runs, and asking again for the same data returns the same report", async () => {
+    const snapshot = await controller.load();
+    const subjectId = snapshot.subjectId as string;
+
+    const first = await controller.createReport(subjectId, snapshot.serverRuns.length);
+    const again = await controller.createReport(subjectId, snapshot.serverRuns.length);
+
+    expect(again.id).toBe(first.id);
+    expect(first.summaryCount).toBe(2);
+    expect(first.metrics?.accuracyPercent).toEqual(snapshot.twin?.metrics?.accuracyPercent);
+    expect(first.limitations.join(" ")).toMatch(/not a diagnosis/i);
+
+    const after = await controller.load();
+    expect(after.reports.map((report) => report.id)).toEqual([first.id]);
+  });
+
   it("another participant cannot read this participant's data", async () => {
     const other = createBackendClient({
       baseUrl: baseUrl as string,
@@ -152,6 +217,9 @@ describe.skipIf(!baseUrl)("frontend client against the real backend", () => {
     const after = await controller.load();
     expect(after.consent.status).toBe("none");
     expect(after.serverRuns).toHaveLength(2);
+    // Existing server-side insights stay readable after withdrawal.
+    expect(after.twin?.version).toBe(2);
+    expect(after.reports).toHaveLength(1);
     await expect(
       controller.persistRun(buildRun(participantId, "run-after-withdrawal", (isTarget) => isTarget)),
     ).rejects.toBeInstanceOf(ConsentRequiredError);

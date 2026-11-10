@@ -18,6 +18,8 @@ import {
   type BackendSyncSnapshot,
   type PersistOutcome,
 } from "@/lib/backend/sync-controller";
+import type { ServerReportView, ServerTwinHistoryEntry, ServerTwinView } from "@/lib/backend/twin";
+import type { BackendSession } from "@/lib/backend/types";
 import type { CptRunSummary } from "@/types";
 
 export type BackendSyncStatus = "loading" | "ready" | "error";
@@ -28,6 +30,14 @@ interface BackendSyncContextValue {
   loadError: string | null;
   consent: BackendSyncSnapshot["consent"];
   serverRuns: CptRunSummary[];
+  /** Server-calculated Digital Twin, version history, reports and sessions. */
+  twin: ServerTwinView | null;
+  twinHistory: ServerTwinHistoryEntry[];
+  reports: ServerReportView[];
+  sessions: BackendSession[];
+  reportBusy: boolean;
+  reportError: string | null;
+  createReport: () => Promise<void>;
   /** True while a consent grant or withdrawal is in flight. */
   consentBusy: boolean;
   /** User-safe message for the last consent action failure. */
@@ -74,6 +84,8 @@ export function BackendSyncProvider({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const loadVersion = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -136,6 +148,25 @@ export function BackendSyncProvider({
     }
   }, [controller, refresh, snapshot]);
 
+  const createReport = useCallback(async () => {
+    const current = snapshot;
+    if (!current?.subjectId || current.serverRuns.length === 0) {
+      return;
+    }
+
+    setReportBusy(true);
+    setReportError(null);
+
+    try {
+      await controller.createReport(current.subjectId, current.serverRuns.length);
+      await refresh();
+    } catch (error) {
+      setReportError(describeSyncError(error));
+    } finally {
+      setReportBusy(false);
+    }
+  }, [controller, refresh, snapshot]);
+
   const persistRun = useCallback(
     async (run: CptRunSummary) => {
       let outcome: PersistOutcome;
@@ -159,6 +190,13 @@ export function BackendSyncProvider({
       loadError,
       consent: snapshot?.consent ?? NO_CONSENT,
       serverRuns: snapshot?.serverRuns ?? [],
+      twin: snapshot?.twin ?? null,
+      twinHistory: snapshot?.twinHistory ?? [],
+      reports: snapshot?.reports ?? [],
+      sessions: snapshot?.sessions ?? [],
+      reportBusy,
+      reportError,
+      createReport,
       consentBusy,
       consentError,
       grantConsent,
@@ -170,6 +208,9 @@ export function BackendSyncProvider({
       status,
       loadError,
       snapshot,
+      reportBusy,
+      reportError,
+      createReport,
       consentBusy,
       consentError,
       grantConsent,

@@ -76,6 +76,11 @@ object storage; raw EEG and webcam video are not put into Firestore.
   History now lives in `subjects/{id}/digitalTwinHistory/{historyId}`; the
   in-memory repository now rejects invalid path shapes. No live data existed
   at the old path.
+- `tests/test_auth_emulator.py` (6 tests) verifies the real Firebase ID-token
+  path against the Auth emulator: invalid tokens, profile provisioning, custom
+  claim roles, unsupported roles failing closed, revoked tokens, and
+  cross-user/clinician isolation. Run with `--only auth` alone (no Java needed)
+  or together with Firestore via `scripts/run-emulator-tests.ps1`.
 - `ruff check`, `ruff format --check`, `compileall` and `pip check` pass.
 - Frontend: `npm run lint`, `typecheck`, `npm test` (Vitest unit tests) and
   `npm run test:e2e` (Playwright smoke tests against a production demo build)

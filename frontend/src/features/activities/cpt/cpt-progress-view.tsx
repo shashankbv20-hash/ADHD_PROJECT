@@ -179,7 +179,8 @@ function EmptyProgressState({
 }
 
 export function CptProgressView() {
-  const { cptRuns, storageMode, cloudSyncEnabled } = useActivitySessions();
+  const { cptRuns, storageMode, cloudSyncEnabled, persistenceTarget } = useActivitySessions();
+  const toBackend = storageMode === "firebase" && persistenceTarget === "backend";
   const isFirebase = storageMode === "firebase";
   const {
     scoredRuns,
@@ -226,7 +227,12 @@ export function CptProgressView() {
         }
       />
 
-      {isFirebase ? (
+      {toBackend ? (
+        <Alert tone="info" title="Saved runs come from the research backend">
+          Saved runs show server-calculated metrics; the backend keeps their trial events. Runs from
+          this browser session that are not saved yet are included too.
+        </Alert>
+      ) : isFirebase ? (
         <Alert tone="info" title="Summary metrics only">
           {cloudSyncEnabled
             ? "Saved CPT records contain per-run metrics only. Trial events and response timelines remain in the browser."
@@ -238,8 +244,10 @@ export function CptProgressView() {
 
         <Alert tone="info" title="Progress scope">
           Only completed scored CPT runs are included. Practice trials are
-          excluded, and trends require at least two scored runs. Firebase saves
-          summary metrics only when the account preference is enabled.
+          excluded, and trends require at least two scored runs.{" "}
+          {toBackend
+            ? "Saved runs are stored by the research backend after you grant consent."
+            : "Firebase saves summary metrics only when the account preference is enabled."}
         </Alert>
 
       {scoredRuns.length === 0 ? (
@@ -339,8 +347,9 @@ export function CptProgressView() {
                 <div>
                   <p className="font-medium text-ink">Raw trial events</p>
                   <p>
-                    Each browser run records trial details locally. Firebase
-                    retains summary metrics only; raw events are not uploaded.
+                    {toBackend
+                      ? "Each browser run records trial details locally. With your research consent they are also sent to the research backend, which stores them and calculates the saved summary."
+                      : "Each browser run records trial details locally. Firebase retains summary metrics only; raw events are not uploaded."}
                   </p>
                 </div>
                 <div>

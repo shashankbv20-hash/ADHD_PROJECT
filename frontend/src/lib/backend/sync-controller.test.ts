@@ -124,6 +124,63 @@ function fakeClient(overrides: Record<string, unknown> = {}) {
     })),
     createSession: vi.fn(async () => completedSession()),
     getSessionSummaries: vi.fn(async () => [summary("assignment-1", "2026-01-03T00:00:00Z")]),
+    getDigitalTwin: vi.fn(async () => ({
+      subjectId: "subject-1",
+      version: 2,
+      status: "available" as const,
+      profile: {
+        status: "available",
+        summary_count: 2,
+        metrics: { accuracy_percent: 90, mean_hit_reaction_time_ms: 410, summary_count: 2 },
+        baseline: { summary_id: "a", completed_at: "2026-01-01T00:00:00Z" },
+        latest: { summary_id: "b", completed_at: "2026-01-03T00:00:00Z" },
+        change: { accuracy_delta_percentage_points: 5, mean_hit_reaction_time_delta_ms: -20 },
+        observation_start: "2026-01-01T00:00:00Z",
+        observation_end: "2026-01-03T00:00:00Z",
+      },
+      qualityFlags: [],
+      updatedAt: "2026-01-03T00:00:00Z",
+    })),
+    listDigitalTwinHistory: vi.fn(async () => ({
+      items: [
+        {
+          id: "h1",
+          subjectId: "subject-1",
+          version: 1,
+          sourceSummaryIds: ["a"],
+          snapshot: { metrics: { accuracy_percent: 85 } },
+          qualityFlags: ["fewer_than_two_scored_observations"],
+          algorithmVersion: "cpt-descriptive-twin-v1",
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+        {
+          id: "h2",
+          subjectId: "subject-1",
+          version: 2,
+          sourceSummaryIds: ["a", "b"],
+          snapshot: { metrics: { accuracy_percent: 90 } },
+          qualityFlags: [],
+          algorithmVersion: "cpt-descriptive-twin-v1",
+          createdAt: "2026-01-03T00:00:00Z",
+        },
+      ],
+    })),
+    listReports: vi.fn(async () => ({ items: [] })),
+    createReport: vi.fn(async (_subjectId: string, body: { idempotencyKey: string }) => ({
+      id: "report-1",
+      subjectId: "subject-1",
+      sessionId: null,
+      reportType: "cpt-summary",
+      templateVersion: "v1",
+      createdAt: "2026-01-04T00:00:00Z",
+      content: {
+        summary_count: 2,
+        metrics: { accuracy_percent: 90, mean_hit_reaction_time_ms: 410 },
+        limitations: ["Descriptive only."],
+        echoedKey: body.idempotencyKey,
+      },
+    })),
+    listSessions: vi.fn(async () => ({ items: [completedSession()], nextCursor: null })),
     ...overrides,
   };
   return { client: client as unknown as BackendClient, mocks: client };
@@ -136,9 +193,18 @@ describe("backend sync controller", () => {
 
       const snapshot = await createBackendSyncController({ client, participantId: UID }).load();
 
-      expect(snapshot).toEqual({ subjectId: null, consent: { status: "none" }, serverRuns: [] });
+      expect(snapshot).toEqual({
+        subjectId: null,
+        consent: { status: "none" },
+        serverRuns: [],
+        twin: null,
+        twinHistory: [],
+        reports: [],
+        sessions: [],
+      });
       expect(mocks.createSubject).not.toHaveBeenCalled();
       expect(mocks.createConsent).not.toHaveBeenCalled();
+      expect(mocks.getDigitalTwin).not.toHaveBeenCalled();
     });
 
     it("reports granted consent and maps server summaries to runs", async () => {
@@ -160,6 +226,37 @@ describe("backend sync controller", () => {
         accuracyPercent: 100,
         events: [],
       });
+    });
+
+    it("loads the server Digital Twin, version history, reports and sessions", async () => {
+      const { client } = fakeClient();
+
+      const snapshot = await createBackendSyncController({ client, participantId: UID }).load();
+
+      expect(snapshot.twin).toMatchObject({
+        version: 2,
+        status: "available",
+        summaryCount: 2,
+        accuracyDeltaPoints: 5,
+        meanHitReactionTimeDeltaMs: -20,
+      });
+      expect(snapshot.twin?.metrics?.accuracyPercent).toBe(90);
+      expect(snapshot.twinHistory.map((entry) => entry.version)).toEqual([2, 1]);
+      expect(snapshot.twinHistory[0]).toMatchObject({ sourceCount: 2, accuracyPercent: 90 });
+      expect(snapshot.sessions).toHaveLength(1);
+      expect(snapshot.reports).toEqual([]);
+    });
+
+    it("keeps existing server data readable after consent is withdrawn", async () => {
+      const { client } = fakeClient({
+        listConsents: vi.fn(async () => ({ items: [consent({ status: "withdrawn" })] })),
+      });
+
+      const snapshot = await createBackendSyncController({ client, participantId: UID }).load();
+
+      expect(snapshot.consent).toEqual({ status: "none" });
+      expect(snapshot.serverRuns).toHaveLength(1);
+      expect(snapshot.twin?.version).toBe(2);
     });
 
     it.each(["withdrawn", "superseded", "denied"] as const)(
@@ -237,6 +334,41 @@ describe("backend sync controller", () => {
     });
   });
 
+  describe("createReport", () => {
+    it("derives the idempotency key from the saved-run count, so repeats are not duplicated", async () => {
+      const { client, mocks } = fakeClient();
+      const controller = createBackendSyncController({ client, participantId: UID });
+
+      await controller.createReport("subject-1", 3);
+      await controller.createReport("subject-1", 3);
+      await controller.createReport("subject-1", 4);
+
+      const keys = mocks.createReport.mock.calls.map(([, body]) => body.idempotencyKey);
+      expect(keys[0]).toBe(keys[1]);
+      expect(keys[2]).not.toBe(keys[0]);
+      for (const key of keys) {
+        expect(key.length).toBeGreaterThanOrEqual(8);
+        expect(key.length).toBeLessThanOrEqual(128);
+      }
+    });
+
+    it("returns a parsed view of the report", async () => {
+      const { client } = fakeClient();
+
+      const report = await createBackendSyncController({ client, participantId: UID }).createReport(
+        "subject-1",
+        2,
+      );
+
+      expect(report).toMatchObject({
+        id: "report-1",
+        summaryCount: 2,
+        limitations: ["Descriptive only."],
+      });
+      expect(report.metrics?.accuracyPercent).toBe(90);
+    });
+  });
+
   describe("persistRun", () => {
     it("returns the server run id that stands in for the browser run", async () => {
       const startableSession = completedSession();
@@ -265,6 +397,17 @@ describe("backend sync controller", () => {
       ).rejects.toThrow(/does not belong/);
       expect(mocks.listSubjects).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("describeSyncError for reports and consent", () => {
+  it("explains an empty report request and a consent requirement in plain words", () => {
+    expect(
+      describeSyncError(new ApiError("x", 409, "http-request-failed", { backendCode: "report_insufficient_data" })),
+    ).toMatch(/no saved runs/i);
+    expect(
+      describeSyncError(new ApiError("x", 403, "http-request-failed", { backendCode: "consent_required" })),
+    ).toMatch(/consent/i);
   });
 });
 

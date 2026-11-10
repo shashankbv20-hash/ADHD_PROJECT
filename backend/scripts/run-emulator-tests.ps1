@@ -14,7 +14,7 @@ $pytestArgs = if ($args.Count -gt 0) { $args -join " " } else { "-q" }
 # start with "demo-" so no real Firebase project can ever be touched.
 npx --yes firebase-tools@15.34.2 emulators:exec `
   --config ../frontend/firebase.json `
-  --only firestore `
+  --only auth,firestore `
   --project demo-attune-tests `
   "python -m pytest $pytestArgs"
 exit $LASTEXITCODE

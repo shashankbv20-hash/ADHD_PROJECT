@@ -39,7 +39,8 @@ function AccountMetric({
 
 export function FirebaseParticipantDashboard() {
   const { account, signOutUser } = useFirebaseAuth();
-  const { cptRuns, persistenceMessage, persistenceStatus } = useActivitySessions();
+  const { cptRuns, persistenceMessage, persistenceStatus, persistenceTarget } = useActivitySessions();
+  const toBackend = persistenceTarget === "backend";
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -146,8 +147,9 @@ export function FirebaseParticipantDashboard() {
 
       {persistenceStatus === "saving" ? (
         <Alert tone="info" title="Saving activity summary">
-          The CPT summary and application-session metadata are being saved. Raw
-          trial events and EEG contents are not uploaded.
+          {toBackend
+            ? "This scored run is being sent to the research backend, which stores the trial events and calculates the summary. EEG contents are not uploaded."
+            : "The CPT summary and application-session metadata are being saved. Raw trial events and EEG contents are not uploaded."}
         </Alert>
       ) : null}
       {persistenceStatus === "failed" ? (

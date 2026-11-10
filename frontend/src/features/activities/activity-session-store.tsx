@@ -19,6 +19,8 @@ export interface NewCptRun {
   events: CptTrialEvent[];
 }
 
+export type PersistenceTarget = "firebase" | "backend";
+
 /** Optional result of a persistence attempt, used to label and de-duplicate saved runs. */
 export interface PersistRunOutcome {
   /** Success message shown to the participant; defaults to the Firebase wording. */
@@ -38,6 +40,12 @@ interface ActivitySessionContextValue {
   cptRuns: CptRunSummary[];
   participantId: string;
   storageMode: "memory" | "firebase";
+  /**
+   * Where saved runs go. "firebase": summary metrics only, direct to Firestore.
+   * "backend": trial events are sent to the research backend for server-side scoring.
+   * Screens use this so their privacy wording matches what actually happens.
+   */
+  persistenceTarget: PersistenceTarget;
   cloudSyncEnabled: boolean;
   canClearCptRuns: boolean;
   persistenceStatus: "not-applicable" | "disabled" | "saving" | "saved" | "failed";
@@ -91,6 +99,7 @@ export function ActivitySessionProvider({
   children,
   participantId = DEMO_PARTICIPANT_ID,
   storageMode = "memory",
+  persistenceTarget = "firebase",
   cloudSyncEnabled = false,
   initialRuns = [],
   onPersistRun,
@@ -98,6 +107,7 @@ export function ActivitySessionProvider({
   children: ReactNode;
   participantId?: string;
   storageMode?: "memory" | "firebase";
+  persistenceTarget?: PersistenceTarget;
   cloudSyncEnabled?: boolean;
   initialRuns?: CptRunSummary[];
   onPersistRun?: (run: CptRunSummary) => Promise<PersistRunOutcome | void>;
@@ -202,6 +212,7 @@ export function ActivitySessionProvider({
       cptRuns,
       participantId,
       storageMode,
+      persistenceTarget,
       cloudSyncEnabled,
       canClearCptRuns: storageMode === "memory",
       persistenceStatus,
@@ -215,6 +226,7 @@ export function ActivitySessionProvider({
       cptRuns,
       participantId,
       storageMode,
+      persistenceTarget,
       cloudSyncEnabled,
       persistenceStatus,
       persistenceMessage,

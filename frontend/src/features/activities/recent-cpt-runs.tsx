@@ -23,8 +23,10 @@ export function RecentCptRuns() {
     storageMode,
     cloudSyncEnabled,
     canClearCptRuns,
+    persistenceTarget,
   } = useActivitySessions();
   const isFirebase = storageMode === "firebase";
+  const toBackend = isFirebase && persistenceTarget === "backend";
   const recentRuns = cptRuns.slice(0, 5);
 
   return (
@@ -32,7 +34,9 @@ export function RecentCptRuns() {
       <CardHeader>
         <CardTitle>Recent CPT runs</CardTitle>
         <CardDescription>
-          {isFirebase
+          {toBackend
+            ? "Recent scored run summaries saved to the research backend or held in this browser session. The backend keeps the trial events of saved runs."
+            : isFirebase
             ? "Recent scored run summaries available to this account or browser session. Firebase stores summary metrics only, never raw trial events."
             : "Completed scored runs in this browser session. These records live in memory and reset when the page is reloaded."}
         </CardDescription>
@@ -55,7 +59,9 @@ export function RecentCptRuns() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">
             <caption className="sr-only">
-              {isFirebase
+              {toBackend
+                ? "Research backend and browser CPT summaries with completion time, metrics, and review links."
+                : isFirebase
                 ? "Firebase account and browser CPT summaries with completion time, metrics, and review links. Raw trial events are not uploaded."
                 : "In-memory Continuous Performance Task runs with mode, completion time, accuracy, reaction-time summaries, and review links."}
             </caption>

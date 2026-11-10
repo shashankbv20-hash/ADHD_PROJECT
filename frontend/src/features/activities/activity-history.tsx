@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { participantDemoMeta } from "@/data/demo/participant";
 import { useActivitySessions } from "@/features/activities/activity-session-store";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
+import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import { formatDateTime } from "@/lib/utils";
 import type { CptRunSummary } from "@/types";
 
@@ -105,11 +106,15 @@ export function ActivityHistory() {
     cptRuns,
     clearCptRuns,
     storageMode,
+    persistenceTarget,
     cloudSyncEnabled,
     canClearCptRuns,
+    unsyncedRunCount,
   } = useActivitySessions();
   const { account } = useFirebaseAuth();
+  const backendSync = useOptionalBackendSync();
   const isFirebase = storageMode === "firebase";
+  const toBackend = isFirebase && persistenceTarget === "backend";
 
   return (
     <div className="space-y-6">
@@ -117,14 +122,16 @@ export function ActivityHistory() {
         eyebrow="Participant workspace"
         title="Activity history"
         description={
-          isFirebase
+          toBackend
+            ? "Review CPT summaries saved to the research backend, earlier Firebase summaries, and runs from this browser session. Saved runs show server-calculated values; the backend keeps their trial events."
+            : isFirebase
             ? "Review CPT summaries available to this signed-in account and current browser session. Firebase records contain summary metrics, not trial-by-trial events."
             : "Review completed CPT runs recorded in this browser session. Each record links to its calculated metrics and trial-by-trial events."
         }
         meta={
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={isFirebase ? "success" : "brand"} dot>
-              {isFirebase ? "Firebase account" : "In-memory"}
+              {toBackend ? "Research backend" : isFirebase ? "Firebase account" : "In-memory"}
             </Badge>
             <span className="text-xs text-ink-subtle">
               {cptRuns.length} recorded run{cptRuns.length === 1 ? "" : "s"}
@@ -144,7 +151,14 @@ export function ActivityHistory() {
         }
       />
 
-      {isFirebase ? (
+      {toBackend ? (
+        <Alert tone="info" title="Saved through the research backend">
+          With your research consent, scored runs are sent to the backend, which stores the trial events
+          and calculates the summary. Runs that could not be saved yet stay in this browser session
+          {unsyncedRunCount > 0 ? ` (${unsyncedRunCount} waiting)` : ""}. Older Firebase summaries are
+          kept as they are.
+        </Alert>
+      ) : isFirebase ? (
         <Alert tone="info" title="Summary-only cloud history">
           {cloudSyncEnabled
             ? "New scored summaries are saved to this participant account. Raw trial events are never uploaded."
@@ -166,7 +180,9 @@ export function ActivityHistory() {
           <div className="space-y-1">
             <CardTitle>Recorded runs</CardTitle>
             <CardDescription>
-              {isFirebase
+              {toBackend
+                ? "Newest first. Saved entries show server-calculated summary values; runs from this browser session may include trial details."
+                : isFirebase
                 ? "Newest first. Saved Firebase entries contain summary metrics only; browser-local runs may include trial details."
                 : "Newest first. Open a run for its full summary and raw trial-event review."}
             </CardDescription>
@@ -200,7 +216,9 @@ export function ActivityHistory() {
 
         <CardFooter className="flex-wrap">
           <p className="text-xs text-ink-subtle">
-            {isFirebase
+            {toBackend
+              ? `${backendSync?.serverRuns.length ?? 0} saved to the research backend · ${account?.activityRuns.length ?? 0} earlier Firebase summaries · ${unsyncedRunCount} not saved yet`
+              : isFirebase
               ? `${account?.activityRuns.length ?? 0} Firebase summaries · ${Math.max(0, cptRuns.length - (account?.activityRuns.length ?? 0))} browser-only runs`
               : `${cptRuns.length} in-memory run${cptRuns.length === 1 ? "" : "s"} · not persisted`}
           </p>

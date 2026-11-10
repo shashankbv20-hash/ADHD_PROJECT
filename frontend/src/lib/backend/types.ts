@@ -152,6 +152,38 @@ export interface BackendDigitalTwin {
   updatedAt: string | null;
 }
 
+export interface BackendSessionPage {
+  items: BackendSession[];
+  nextCursor: string | null;
+}
+
+export interface BackendDigitalTwinHistoryItem {
+  id: string;
+  subjectId: string;
+  version: number;
+  sourceSummaryIds: string[];
+  snapshot: Record<string, unknown>;
+  qualityFlags: string[];
+  algorithmVersion: string;
+  createdAt: string;
+}
+
+export interface BackendReport {
+  id: string;
+  subjectId: string;
+  sessionId: string | null;
+  reportType: string;
+  templateVersion: string;
+  content: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ReportCreateRequest {
+  sessionId?: string;
+  /** 8–128 chars; the same key returns the same report. */
+  idempotencyKey: string;
+}
+
 export interface BackendCapabilities {
   apiVersion: string;
   firestore: { configured: boolean };

@@ -48,6 +48,7 @@ export function CptSummary({
   cloudSyncEnabled = false,
   persistenceStatus = "not-applicable",
   persistenceMessage,
+  persistenceTarget = "firebase",
   onSaveReport,
 }: {
   title: string;
@@ -61,8 +62,10 @@ export function CptSummary({
   cloudSyncEnabled?: boolean;
   persistenceStatus?: "not-applicable" | "disabled" | "saving" | "saved" | "failed";
   persistenceMessage?: string | null;
+  persistenceTarget?: "firebase" | "backend";
   onSaveReport?: () => Promise<unknown>;
 }) {
+  const toBackend = storageMode === "firebase" && persistenceTarget === "backend";
   const [reportSaving, setReportSaving] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -185,17 +188,23 @@ export function CptSummary({
               Trial-by-trial events
             </h3>
             <p className="mt-0.5 text-xs text-ink-subtle">
-              {storageMode === "firebase"
-                ? "Trial events remain in this browser. Firebase stores summary metrics only when cloud sync is enabled."
-                : "Measured events are retained in memory for this run and do not leave the browser."}
+              {toBackend
+                ? "With your research consent, these trial events are sent to the research backend, which validates them and calculates the summary. This table is the copy held in this browser."
+                : storageMode === "firebase"
+                  ? "Trial events remain in this browser. Firebase stores summary metrics only when cloud sync is enabled."
+                  : "Measured events are retained in memory for this run and do not leave the browser."}
             </p>
           </div>
           {events.length > 0 ? (
             <CptEventTable events={events} />
           ) : metrics.trialCount > 0 ? (
-            <Alert tone="info" title="Trial details were not stored">
-              This saved Firebase activity record contains summary metrics only.
-              Raw trial events and response timelines were not uploaded.
+            <Alert
+              tone="info"
+              title={toBackend ? "Trial details are held by the research backend" : "Trial details were not stored"}
+            >
+              {toBackend
+                ? "This run was loaded from the research backend, which keeps the trial events and returns the server-calculated summary only."
+                : "This saved Firebase activity record contains summary metrics only. Raw trial events and response timelines were not uploaded."}
             </Alert>
           ) : (
             <CptEventTable events={events} />
@@ -207,6 +216,12 @@ export function CptSummary({
         <p className="text-xs text-ink-subtle">
           {mode !== "scored"
             ? "Practice results are shown for review and are not saved."
+            : toBackend
+              ? persistenceStatus === "saving"
+                ? "Saving to the research backend…"
+                : persistenceStatus === "failed"
+                  ? persistenceMessage ?? "Saving to the research backend failed; the run remains in this browser session."
+                  : "Saved to the research backend, including the trial events used to calculate this summary."
             : storageMode === "firebase"
               ? cloudSyncEnabled
                 ? persistenceStatus === "saved"

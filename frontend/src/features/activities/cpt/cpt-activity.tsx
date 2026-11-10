@@ -139,11 +139,13 @@ export function CptActivity() {
     saveCptRun,
     participantId,
     storageMode,
+    persistenceTarget,
     cloudSyncEnabled,
     persistenceStatus,
     persistenceMessage,
   } = useActivitySessions();
   const firebaseAuth = useFirebaseAuth();
+  const toBackend = storageMode === "firebase" && persistenceTarget === "backend";
 
   const [phase, setPhase] = useState<CptPhase>("intro");
   const [mode, setMode] = useState<TrialMode>("practice");
@@ -477,9 +479,9 @@ export function CptActivity() {
         <DemoNotice meta={participantDemoMeta} />
       ) : (
         <Alert tone="warning" title="CPT demonstration task">
-          The task and scoring run in the browser. If cloud sync is enabled,
-          summary metrics and CPT session metadata may be stored in Firebase;
-          raw trial events and EEG files are not uploaded.
+          {toBackend
+            ? "The task runs in the browser. If you have granted research consent, each scored run is sent to the research backend, which stores the trial events (stimulus, whether you responded, response time) and calculates the summary. Practice runs and EEG files are never uploaded."
+            : "The task and scoring run in the browser. If cloud sync is enabled, summary metrics and CPT session metadata may be stored in Firebase; raw trial events and EEG files are not uploaded."}
         </Alert>
       )}
 
@@ -785,7 +787,9 @@ export function CptActivity() {
           <CptSummary
             title="Scored run complete"
             description={
-              storageMode === "firebase" && cloudSyncEnabled
+              toBackend
+                ? "The scored run is complete. With your research consent it is sent to the research backend, which validates the trials and calculates the summary."
+                : storageMode === "firebase" && cloudSyncEnabled
                 ? "The scored run is complete. Summary metrics and CPT session metadata are eligible for account sync; raw trial events stay in the browser."
                 : "The scored run is complete. Its browser summary resets on reload unless cloud sync was enabled before the run."
             }
@@ -797,8 +801,11 @@ export function CptActivity() {
             cloudSyncEnabled={cloudSyncEnabled}
             persistenceStatus={persistenceStatus}
             persistenceMessage={persistenceMessage}
+            persistenceTarget={persistenceTarget}
+            // In API-backed mode reports are created by the backend (Digital Twin page);
+            // the direct Firestore report write is intentionally not offered.
             onSaveReport={
-              storageMode === "firebase" && cloudSyncEnabled
+              storageMode === "firebase" && cloudSyncEnabled && !toBackend
                 ? () => firebaseAuth.saveReportSummary(runSummary)
                 : undefined
             }

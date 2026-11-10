@@ -140,7 +140,31 @@ loopback only, refuses to start without `ATTUNE_ALLOW_FAKE_AUTH=1`) and checks
 that frontend and backend CPT scoring agree. It is skipped unless
 `BACKEND_CONTRACT_URL` is set; CI runs it in the `contract` job.
 
-**Not yet done.** Progress, Twin and report *pages* still render from the runs
-list rather than dedicated API calls; report creation through the API; consent
-UI for `eeg_processing` / `webcam_analysis`; browser tests of Firebase mode
-(needs the Auth emulator); real consent wording and guardian flow.
+**Server-backed screens (API-backed mode).** The Digital Twin page shows the
+server's Twin (version, accuracy and reaction-time change, quality flags,
+provenance) and its immutable version history, plus a reports card
+(`POST /subjects/{id}/reports`, key derived from the saved-run count so repeats
+return the same report). The session-history page lists backend sessions, with
+earlier Firestore sessions kept below as read-only. The direct Firestore report
+write is not offered in this mode. `twin.ts` parses the snake_case `profile` /
+report `content` objects defensively (unknown or mistyped fields become `null`).
+
+**Truthful privacy wording.** In this mode trial events *are* sent to the
+backend (with consent), so every screen that previously said "raw trial events
+are never uploaded" now reads `persistenceTarget` from the activity store
+(`"firebase"` or `"backend"`) and shows accurate text for the active target.
+New screens that describe storage must do the same.
+
+**Real authentication tests.** `backend/tests/test_auth_emulator.py` exercises
+the real `verify_firebase_id_token` path with tokens issued by the Firebase Auth
+emulator: missing/garbage tokens, profile provisioning, trusted custom-claim
+roles, unsupported role claims failing closed, revoked sessions, and cross-user
+and clinician isolation. It needs only the Auth emulator (the Firestore
+emulator is used when also running, otherwise the in-memory store).
+
+**Not yet done.** Dedicated progress endpoint display (progress is shown from
+the runs list and the Twin aggregate); consent UI for `eeg_processing` /
+`webcam_analysis`; browser tests of Firebase mode (the Auth emulator is now
+available for this); real consent wording and guardian flow; a policy for the
+legacy Firestore runs (currently kept read-only and merged for display);
+pagination beyond the first 50 saved runs / sessions.

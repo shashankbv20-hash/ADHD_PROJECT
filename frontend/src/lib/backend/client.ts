@@ -6,12 +6,16 @@ import type {
   BackendConsent,
   BackendCptEvent,
   BackendDigitalTwin,
+  BackendDigitalTwinHistoryItem,
   BackendProgress,
+  BackendReport,
   BackendSession,
+  BackendSessionPage,
   BackendSubject,
   BackendUser,
   ConsentCreateRequest,
   EventBatchResponse,
+  ReportCreateRequest,
   SessionCreateRequest,
 } from "@/lib/backend/types";
 
@@ -102,6 +106,12 @@ export function createBackendClient({
 
     createSession: (body: SessionCreateRequest) => post<BackendSession>("sessions", body),
     getSession: (sessionId: string) => request<BackendSession>(`sessions/${sessionId}`),
+    listSessions: (subjectId: string, page: { limit?: number; cursor?: string } = {}) => {
+      const query = new URLSearchParams({ subjectId });
+      if (page.limit) query.set("limit", String(page.limit));
+      if (page.cursor) query.set("cursor", page.cursor);
+      return request<BackendSessionPage>(`sessions?${query.toString()}`);
+    },
     startSession: (sessionId: string) => post<BackendSession>(`sessions/${sessionId}/start`),
     startActivity: (sessionId: string, assignmentId: string) =>
       post<BackendSession>(`sessions/${sessionId}/activities/${assignmentId}/start`),
@@ -127,6 +137,15 @@ export function createBackendClient({
     },
     getDigitalTwin: (subjectId: string) =>
       request<BackendDigitalTwin>(`subjects/${subjectId}/digital-twin`),
+    listDigitalTwinHistory: (subjectId: string) =>
+      request<{ items: BackendDigitalTwinHistoryItem[] }>(
+        `subjects/${subjectId}/digital-twin/history`,
+      ),
+
+    listReports: (subjectId: string) =>
+      request<{ items: BackendReport[] }>(`subjects/${subjectId}/reports`),
+    createReport: (subjectId: string, body: ReportCreateRequest) =>
+      post<BackendReport>(`subjects/${subjectId}/reports`, body),
   };
 }
 

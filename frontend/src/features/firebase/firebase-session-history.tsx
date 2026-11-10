@@ -10,11 +10,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { EmptyState } from "@/components/ui/empty-state";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
 import { useActivitySessions } from "@/features/activities/activity-session-store";
+import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
+import { ServerSessionsCard } from "@/features/backend/server-insights";
 import { formatDateTime } from "@/lib/utils";
 
 export function FirebaseSessionHistory() {
   const { account } = useFirebaseAuth();
   const { cptRuns } = useActivitySessions();
+  const backendSync = useOptionalBackendSync();
   const sessions = account?.appSessions ?? [];
   const savedSessionIds = new Set(sessions.map((session) => session.sessionId));
   const browserOnlyRuns = cptRuns.filter((run) => !savedSessionIds.has(run.id));
@@ -41,6 +44,8 @@ export function FirebaseSessionHistory() {
         }
       />
 
+      {backendSync ? <ServerSessionsCard /> : null}
+
       <Alert tone="info" title="Application metadata only">
         These records describe completed CPT demo-task workflows. They do not
         represent EEG recordings, clinical sessions, or server-side analysis.
@@ -48,10 +53,13 @@ export function FirebaseSessionHistory() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Saved application sessions</CardTitle>
+          <CardTitle>
+            {backendSync ? "Earlier Firebase sessions (read-only)" : "Saved application sessions"}
+          </CardTitle>
           <CardDescription>
-            Session metadata is stored only after cloud synchronization is
-            enabled and a scored CPT run completes.
+            {backendSync
+              ? "Session metadata saved directly to your Firebase account before research-backend saving was used. These records are kept as they are and are not updated."
+              : "Session metadata is stored only after cloud synchronization is enabled and a scored CPT run completes."}
           </CardDescription>
         </CardHeader>
 

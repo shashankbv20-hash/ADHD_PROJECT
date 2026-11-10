@@ -93,6 +93,7 @@ export function ApiBackedActivityProvider({
     <ActivitySessionProvider
       participantId={participantId}
       storageMode="firebase"
+      persistenceTarget="backend"
       cloudSyncEnabled
       initialRuns={initialRuns}
       onPersistRun={persistRun}

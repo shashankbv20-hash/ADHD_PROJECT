@@ -12,6 +12,7 @@ import { CptProgressCharts } from "@/features/activities/cpt/cpt-progress-charts
 import { buildDigitalTwinProfile } from "@/features/digital-twin/digital-twin-profile-data";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import { ResearchConsentCard } from "@/features/backend/research-consent-card";
+import { ServerDigitalTwinCard, ServerReportsCard } from "@/features/backend/server-insights";
 import { CloudSyncSettings } from "@/features/firebase/cloud-sync-settings";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
 import { formatDateTime } from "@/lib/utils";
@@ -44,7 +45,8 @@ function ProfileMetric({
 
 export function FirebaseDigitalTwinProfile() {
   const { account } = useFirebaseAuth();
-  const { cptRuns } = useActivitySessions();
+  const { cptRuns, persistenceTarget } = useActivitySessions();
+  const toBackend = persistenceTarget === "backend";
   // Non-null only in API-backed mode (Firebase identity + backend persistence).
   const backendSync = useOptionalBackendSync();
 
@@ -83,7 +85,10 @@ export function FirebaseDigitalTwinProfile() {
       <Alert tone="warning" title="No EEG-derived or predictive profile data">
         This profile uses frontend CPT measurements only. It does not include
         EEG features, model inference, clinical classifications, or treatment
-        recommendations. Firebase stores no raw trial timelines.
+        recommendations.{" "}
+        {toBackend
+          ? "Saved runs, including their trial events, are held by the research backend with your consent."
+          : "Firebase stores no raw trial timelines."}
       </Alert>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -123,6 +128,20 @@ export function FirebaseDigitalTwinProfile() {
           </CardContent>
         </Card>
       </div>
+
+      {backendSync ? (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ServerDigitalTwinCard />
+          <ServerReportsCard />
+        </div>
+      ) : null}
+
+      {backendSync ? (
+        <Alert tone="info" title="Profile shown below is derived in this browser">
+          It also counts runs that are not saved to the research backend (for example runs waiting for
+          consent, or older Firebase summaries). The server profile above only counts saved runs.
+        </Alert>
+      ) : null}
 
       {profile.scoredRuns.length === 0 ? (
         <Card>
@@ -228,12 +247,18 @@ export function FirebaseDigitalTwinProfile() {
               <CardHeader>
                 <CardTitle>Stored-data limitations</CardTitle>
                 <CardDescription>
-                  What this Firebase profile includes and omits.
+                  {toBackend
+                    ? "What the older Firebase profile includes and omits."
+                    : "What this Firebase profile includes and omits."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm leading-6 text-ink-muted">
                 <p>Only summary metrics and source-run identifiers can be persisted.</p>
-                <p>Raw CPT trial events, response timing sequences, and EEG contents are not uploaded.</p>
+                <p>
+                  {toBackend
+                    ? "This legacy Firebase profile holds summary metrics only. Newer runs are saved to the research backend, which also holds their trial events; EEG contents are never uploaded."
+                    : "Raw CPT trial events, response timing sequences, and EEG contents are not uploaded."}
+                </p>
                 <p>When sync is off, new runs remain in memory and reset on reload.</p>
                 <p>Turning sync off stops future writes but does not delete saved Firestore records.</p>
               </CardContent>

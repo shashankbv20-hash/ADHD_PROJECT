@@ -81,6 +81,14 @@ Node. From `backend/`:
 powershell -File .\scripts\run-emulator-tests.ps1
 ```
 
+The same script also starts the Firebase **Auth** emulator, which
+`tests/test_auth_emulator.py` uses to verify real Firebase ID tokens (custom-claim
+roles, revocation, cross-user isolation). To run only those tests without Java:
+
+```powershell
+npx firebase-tools@15.34.2 emulators:exec --config ../frontend/firebase.json --only auth --project demo-attune-tests "python -m pytest -q tests/test_auth_emulator.py"
+```
+
 CI runs the same thing with `firebase emulators:exec` (see
 `../.github/workflows/ci.yml`). The emulator project ID is `demo-attune-tests`;
 `demo-` IDs can never reach a real Firebase project. If a failed run leaves the

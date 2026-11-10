@@ -11,7 +11,15 @@ import {
   type CptSyncResult,
 } from "@/lib/backend/cpt-sync";
 import { summaryToCptRun } from "@/lib/backend/summary-mapping";
-import type { BackendConsent } from "@/lib/backend/types";
+import {
+  parseServerReport,
+  parseServerTwin,
+  parseTwinHistory,
+  type ServerReportView,
+  type ServerTwinHistoryEntry,
+  type ServerTwinView,
+} from "@/lib/backend/twin";
+import type { BackendConsent, BackendSession } from "@/lib/backend/types";
 import type { CptRunSummary } from "@/types";
 
 /** Thrown when a run cannot be saved yet because research consent is missing. */
@@ -30,7 +38,22 @@ export interface BackendSyncSnapshot {
   consent: { status: "granted"; id: string; version: string } | { status: "none" };
   /** Server-calculated scored runs, newest first. Trial events stay on the server. */
   serverRuns: CptRunSummary[];
+  /** Server-side Digital Twin (null until a subject exists). */
+  twin: ServerTwinView | null;
+  twinHistory: ServerTwinHistoryEntry[];
+  reports: ServerReportView[];
+  sessions: BackendSession[];
 }
+
+const EMPTY_SNAPSHOT: BackendSyncSnapshot = {
+  subjectId: null,
+  consent: { status: "none" },
+  serverRuns: [],
+  twin: null,
+  twinHistory: [],
+  reports: [],
+  sessions: [],
+};
 
 export interface PersistOutcome {
   /** ID of the server run that now represents the persisted browser run. */
@@ -59,6 +82,12 @@ export function describeSyncError(error: unknown): string {
       return "The research backend could not be reached. Your result stays in this browser session; try again shortly.";
     }
     const reference = error.requestId ? ` (reference ${error.requestId})` : "";
+    if (error.backendCode === "report_insufficient_data") {
+      return "There are no saved runs to include in a report yet.";
+    }
+    if (error.backendCode === "consent_required") {
+      return "Research consent is required for this. Grant consent on this page first.";
+    }
     if (error.status === 403) {
       return `The research backend declined this request${reference}.`;
     }
@@ -88,12 +117,16 @@ export function createBackendSyncController({
     // Read-only: loading the page must not create any backend record.
     const subject = await findOwnSubject(client);
     if (!subject) {
-      return { subjectId: null, consent: { status: "none" }, serverRuns: [] };
+      return EMPTY_SNAPSHOT;
     }
 
-    const [{ items: consents }, firstPage] = await Promise.all([
+    const [{ items: consents }, firstPage, twin, history, reports, sessions] = await Promise.all([
       client.listConsents(subject.id),
       client.listActivitySummaries(subject.id, { limit: 50 }),
+      client.getDigitalTwin(subject.id),
+      client.listDigitalTwinHistory(subject.id),
+      client.listReports(subject.id),
+      client.listSessions(subject.id, { limit: 50 }),
     ]);
     const granted = activeResearchConsent(consents);
 
@@ -105,7 +138,23 @@ export function createBackendSyncController({
       serverRuns: firstPage.items
         .filter((summary) => summary.activityCode === "cpt")
         .map((summary) => summaryToCptRun(summary, participantId)),
+      twin: parseServerTwin(twin),
+      twinHistory: parseTwinHistory(history.items),
+      reports: reports.items.map(parseServerReport),
+      sessions: sessions.items,
     };
+  }
+
+  /**
+   * Explicit, user-initiated report over all saved summaries. The key is derived
+   * from the number of saved runs, so pressing the button twice for the same data
+   * returns the same report instead of creating a duplicate.
+   */
+  async function createReport(subjectId: string, savedRunCount: number): Promise<ServerReportView> {
+    const report = await client.createReport(subjectId, {
+      idempotencyKey: `report-${subjectId}-${savedRunCount}`,
+    });
+    return parseServerReport(report);
   }
 
   /**
@@ -144,7 +193,7 @@ export function createBackendSyncController({
     };
   }
 
-  return { load, grantConsent, withdrawConsent, persistRun };
+  return { load, grantConsent, withdrawConsent, persistRun, createReport };
 }
 
 export type BackendSyncController = ReturnType<typeof createBackendSyncController>;
