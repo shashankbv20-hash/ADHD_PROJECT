@@ -15,6 +15,7 @@ export default defineConfig({
         "src/features/upload/validation.ts",
         "src/features/clinician/clinician-comparison-data.ts",
         "src/lib/api-client.ts",
+        "src/lib/backend/**/*.ts",
         "src/lib/config/frontend-config.ts",
       ],
     },

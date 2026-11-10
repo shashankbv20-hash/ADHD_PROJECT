@@ -95,3 +95,52 @@ copy or delete is performed.
 EEG model inference, webcam feature extraction and AI Buddy provider remain
 unavailable for missing model/preprocessing artifacts, approved extractor/
 policy and LLM configuration. Their capability is not simulated.
+
+## Frontend API layer (`frontend/src/lib/backend/`, `frontend/src/features/backend/`)
+
+**Mode.** Set `NEXT_PUBLIC_DATA_PROVIDER=firebase` and `NEXT_PUBLIC_API_BASE_URL`
+(backend origin, no `/api/v1`) to enable *API-backed Firebase mode*: Firebase
+Authentication for identity, FastAPI for CPT persistence. Without a base URL,
+Firebase mode behaves exactly as before (direct Firestore summary writes).
+
+- `types.ts` — wire types mirroring `backend/app/schemas.py` (the real contract;
+  `frontend/src/types/api.ts` remains an unconnected proposal).
+- `client.ts` — `createBackendClient({ baseUrl, getIdToken })`. Sends
+  `Authorization: Bearer <Firebase ID token>`, retries once with a
+  force-refreshed token after a 401, and reports a missing sign-in as
+  `auth-token-unavailable` without calling the network. Errors expose only the
+  backend `code` and `requestId` (`ApiClientError.backendCode` / `requestId`);
+  server message text is never surfaced.
+- `cpt-sync.ts` — `syncScoredCptRun`: find subject → check active research
+  consent → idempotent session (`cpt-run-<runId>`) → start → activity start →
+  send trial events only → complete → read the server-calculated summary. Every
+  step is state-driven, so a failed attempt is retried safely. Never grants
+  consent, never creates a subject; practice runs are rejected.
+- `sync-controller.ts` — framework-free coordination: read-only `load()`,
+  explicit `grantConsent()` (the only place a subject is created, with a fresh
+  idempotency key per grant so consent can be re-granted after withdrawal),
+  `withdrawConsent()`, `persistRun()`.
+- `consent.ts` — **DRAFT placeholder** consent text and version
+  (`research-consent-DRAFT-v0`). Not approved by the research team, an ethics
+  board or counsel; replace both text and version before real participants use
+  it. Guardian/assent handling is not implemented (the backend lets only the
+  subject's owner grant consent).
+- `features/backend/` — `BackendSyncProvider`, `ApiBackedActivityProvider`
+  (saves runs **only** through the API; the direct Firestore CPT write is not
+  wired, so no run is written to two stores) and `ResearchConsentCard` on the
+  Digital Twin page. Runs that could not be saved (e.g. consent missing) stay in
+  the browser session and are retried when consent is granted or on demand.
+  Pre-existing Firestore runs remain visible and untouched; the legacy
+  Firestore Twin snapshot is no longer updated in this mode.
+
+**Tests.** Unit tests cover the client, sync, controller, mapping and run
+de-duplication. `contract.test.ts` runs the real client against the real
+FastAPI app (`backend/scripts/serve_test_app.py`, fake auth, in-memory store,
+loopback only, refuses to start without `ATTUNE_ALLOW_FAKE_AUTH=1`) and checks
+that frontend and backend CPT scoring agree. It is skipped unless
+`BACKEND_CONTRACT_URL` is set; CI runs it in the `contract` job.
+
+**Not yet done.** Progress, Twin and report *pages* still render from the runs
+list rather than dedicated API calls; report creation through the API; consent
+UI for `eeg_processing` / `webcam_analysis`; browser tests of Firebase mode
+(needs the Auth emulator); real consent wording and guardian flow.

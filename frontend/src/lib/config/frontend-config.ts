@@ -122,7 +122,9 @@ export function parseFrontendConfig(
     }
   }
 
-  if (provider === "remote" && parsedApiBaseUrl.error) {
+  // Firebase mode may also use the FastAPI backend (Firebase identity + API
+  // persistence). The base URL is optional there, but if given it must be valid.
+  if ((provider === "remote" || provider === "firebase") && parsedApiBaseUrl.error) {
     return {
       valid: false,
       provider: null,
@@ -134,7 +136,10 @@ export function parseFrontendConfig(
   return {
     valid: true,
     provider,
-    apiBaseUrl: provider === "remote" ? parsedApiBaseUrl.value : null,
+    apiBaseUrl:
+      provider === "remote" || provider === "firebase"
+        ? parsedApiBaseUrl.value
+        : null,
     firebaseConfig:
       provider === "firebase"
         ? {

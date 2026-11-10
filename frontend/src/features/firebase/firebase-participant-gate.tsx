@@ -5,8 +5,13 @@ import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ActivitySessionProvider } from "@/features/activities/activity-session-store";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
+import {
+  ApiBackedActivityProvider,
+  FirebaseDirectActivityProvider,
+} from "@/features/backend/activity-providers";
+import { BackendSyncProvider } from "@/features/backend/backend-sync-provider";
+import { getFrontendConfig } from "@/lib/config/frontend-config";
 import {
   portalLabels,
   portalRoutes,
@@ -302,22 +307,41 @@ export function FirebaseParticipantGate({
     );
   }
 
+  const accountNotice = auth.error ? (
+    <Alert tone="danger" title="Account refresh failed">
+      {auth.error.message} Previously loaded account records and local runs
+      remain available; no demo records were substituted.
+    </Alert>
+  ) : null;
+
+  // With an API base URL, CPT runs are saved through the backend (after explicit
+  // consent) instead of directly to Firestore. Never both for the same operation.
+  const config = getFrontendConfig();
+  const apiBaseUrl = config.valid ? config.apiBaseUrl : null;
+
+  if (apiBaseUrl) {
+    return (
+      <BackendSyncProvider key={auth.user.uid} user={auth.user} baseUrl={apiBaseUrl}>
+        <ApiBackedActivityProvider
+          participantId={auth.user.uid}
+          legacyRuns={auth.account.activityRuns}
+        >
+          {accountNotice}
+          {children}
+        </ApiBackedActivityProvider>
+      </BackendSyncProvider>
+    );
+  }
+
   return (
-    <ActivitySessionProvider
+    <FirebaseDirectActivityProvider
       key={auth.user.uid}
       participantId={auth.user.uid}
-      storageMode="firebase"
       cloudSyncEnabled={auth.account.profile.cloudSyncEnabled}
       initialRuns={auth.account.activityRuns}
-      onPersistRun={auth.persistCptRun}
     >
-      {auth.error ? (
-        <Alert tone="danger" title="Account refresh failed">
-          {auth.error.message} Previously loaded account records and local runs
-          remain available; no demo records were substituted.
-        </Alert>
-      ) : null}
+      {accountNotice}
       {children}
-    </ActivitySessionProvider>
+    </FirebaseDirectActivityProvider>
   );
 }

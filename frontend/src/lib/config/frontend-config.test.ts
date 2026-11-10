@@ -101,6 +101,32 @@ describe("parseFrontendConfig", () => {
       ).toContain("NEXT_PUBLIC_FIREBASE_API_KEY");
     });
 
+    it("optionally carries the backend base URL (API-backed Firebase mode)", () => {
+      expect(
+        parseFrontendConfig({
+          NEXT_PUBLIC_DATA_PROVIDER: "firebase",
+          ...firebaseEnv,
+          NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000/",
+        }),
+      ).toMatchObject({ valid: true, provider: "firebase", apiBaseUrl: "http://localhost:8000" });
+    });
+
+    it("has no backend URL unless one is configured", () => {
+      expect(
+        parseFrontendConfig({ NEXT_PUBLIC_DATA_PROVIDER: "firebase", ...firebaseEnv }),
+      ).toMatchObject({ valid: true, apiBaseUrl: null });
+    });
+
+    it("rejects an invalid backend URL instead of silently ignoring it", () => {
+      expect(
+        invalidMessage({
+          NEXT_PUBLIC_DATA_PROVIDER: "firebase",
+          ...firebaseEnv,
+          NEXT_PUBLIC_API_BASE_URL: "https://user:secret@example.test",
+        }),
+      ).toMatch(/credentials/);
+    });
+
     it("does not expose Firebase config in other modes", () => {
       expect(parseFrontendConfig({ ...firebaseEnv })).toMatchObject({ firebaseConfig: null });
     });

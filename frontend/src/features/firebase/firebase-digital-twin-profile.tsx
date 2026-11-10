@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useActivitySessions } from "@/features/activities/activity-session-store";
 import { CptProgressCharts } from "@/features/activities/cpt/cpt-progress-charts";
 import { buildDigitalTwinProfile } from "@/features/digital-twin/digital-twin-profile-data";
+import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
+import { ResearchConsentCard } from "@/features/backend/research-consent-card";
 import { CloudSyncSettings } from "@/features/firebase/cloud-sync-settings";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
 import { formatDateTime } from "@/lib/utils";
@@ -43,6 +45,8 @@ function ProfileMetric({
 export function FirebaseDigitalTwinProfile() {
   const { account } = useFirebaseAuth();
   const { cptRuns } = useActivitySessions();
+  // Non-null only in API-backed mode (Firebase identity + backend persistence).
+  const backendSync = useOptionalBackendSync();
 
   if (!account) {
     return null;
@@ -83,12 +87,17 @@ export function FirebaseDigitalTwinProfile() {
       </Alert>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <CloudSyncSettings />
+        <div className="space-y-4">
+          {backendSync ? <ResearchConsentCard /> : null}
+          <CloudSyncSettings />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>Persisted profile snapshot</CardTitle>
             <CardDescription>
-              Saved when cloud sync is enabled and a scored CPT summary is stored.
+              {backendSync
+                ? "Legacy Firebase snapshot. In API-backed mode scored runs are saved through the research backend and this snapshot is no longer updated."
+                : "Saved when cloud sync is enabled and a scored CPT summary is stored."}
             </CardDescription>
           </CardHeader>
           <CardContent>

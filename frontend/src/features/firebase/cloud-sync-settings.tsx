@@ -4,12 +4,15 @@ import { useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
+import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 
 export function CloudSyncSettings() {
   const { account, setCloudSyncEnabled } = useFirebaseAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const enabled = account?.profile.cloudSyncEnabled ?? false;
+  // Non-null in API-backed mode, where scored CPT runs follow research consent instead.
+  const apiBacked = useOptionalBackendSync() !== null;
 
   async function handleChange(nextEnabled: boolean) {
     setSaving(true);
@@ -33,9 +36,9 @@ export function CloudSyncSettings() {
       <CardHeader>
         <CardTitle>Account data synchronization</CardTitle>
         <CardDescription>
-          This setting controls optional application data stored in your Firebase
-          account. Authentication and the required participant profile are
-          managed separately.
+          {apiBacked
+            ? "Scored CPT runs are saved through the research backend and follow the research consent above, not this setting. This setting only controls saved report summaries stored in your Firebase account."
+            : "This setting controls optional application data stored in your Firebase account. Authentication and the required participant profile are managed separately."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

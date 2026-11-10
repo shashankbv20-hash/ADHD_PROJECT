@@ -13,6 +13,10 @@ export class ApiClientError extends Error {
   readonly kind: ApiClientErrorKind;
   readonly status?: number;
   readonly code?: string;
+  /** Machine-readable code from the backend error envelope (e.g. "consent_required"). */
+  readonly backendCode?: string;
+  /** Backend request ID, safe to show to users for support. */
+  readonly requestId?: string;
 
   constructor(
     message: string,
@@ -20,6 +24,8 @@ export class ApiClientError extends Error {
       kind: ApiClientErrorKind;
       status?: number;
       code?: string;
+      backendCode?: string;
+      requestId?: string;
       cause?: unknown;
     },
   ) {
@@ -28,6 +34,8 @@ export class ApiClientError extends Error {
     this.kind = options.kind;
     this.status = options.status;
     this.code = options.code;
+    this.backendCode = options.backendCode;
+    this.requestId = options.requestId;
   }
 }
 
@@ -45,8 +53,13 @@ export class ServiceUnavailableError extends ApiClientError {
 
 /** Compatibility class for HTTP failures; response bodies are intentionally omitted. */
 export class ApiError extends ApiClientError {
-  constructor(message: string, status: number, code?: string) {
-    super(message, { kind: "http", status, code });
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    details: { backendCode?: string; requestId?: string } = {},
+  ) {
+    super(message, { kind: "http", status, code, ...details });
     this.name = "ApiError";
   }
 }
@@ -110,6 +123,38 @@ function resolveRequestUrl(baseUrl: string, path: string): URL {
   }
 
   return url;
+}
+
+const BACKEND_CODE = /^[a-z0-9_]{1,64}$/;
+const REQUEST_ID = /^[A-Za-z0-9-]{1,64}$/;
+
+/**
+ * Extracts only the machine code and request ID from the backend error
+ * envelope `{ error: { code, message, requestId } }`. The free-text message is
+ * deliberately never copied, so server text cannot reach the UI unreviewed.
+ */
+async function readErrorEnvelope(
+  response: globalThis.Response,
+): Promise<{ backendCode?: string; requestId?: string }> {
+  try {
+    const body: unknown = await response.json();
+    const envelope = (body as { error?: Record<string, unknown> } | null)?.error;
+    const backendCode = envelope?.code;
+    const requestId = envelope?.requestId;
+
+    return {
+      backendCode:
+        typeof backendCode === "string" && BACKEND_CODE.test(backendCode)
+          ? backendCode
+          : undefined,
+      requestId:
+        typeof requestId === "string" && REQUEST_ID.test(requestId)
+          ? requestId
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 function isAbortError(error: unknown): boolean {
@@ -211,6 +256,7 @@ export function createApiClient({
           `The API request failed with HTTP status ${response.status}.`,
           response.status,
           "http-request-failed",
+          await readErrorEnvelope(response),
         );
       }
 

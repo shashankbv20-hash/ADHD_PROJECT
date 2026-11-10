@@ -73,6 +73,41 @@ jobs:
           --project demo-attune-tests
           "python -m pytest -q"
 
+  contract:
+    name: Contract (TypeScript client vs real FastAPI app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: python -m pip install -r backend/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Start the fake-auth, in-memory backend (loopback only, test use)
+        working-directory: backend
+        env:
+          ATTUNE_ALLOW_FAKE_AUTH: "1"
+        run: |
+          python scripts/serve_test_app.py --port 8765 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8765/health/live && exit 0
+            sleep 1
+          done
+          echo "backend did not start" && exit 1
+      - name: Run contract tests
+        working-directory: frontend
+        env:
+          BACKEND_CONTRACT_URL: http://127.0.0.1:8765
+        run: npx vitest run src/lib/backend/contract.test.ts
+
   e2e:
     name: Frontend e2e (Playwright smoke tests)
     runs-on: ubuntu-latest
