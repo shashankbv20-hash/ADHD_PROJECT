@@ -70,11 +70,31 @@ ruff check app tests
 ruff format --check app tests
 ```
 
+### Firestore emulator tests
+
+Every API and repository test also runs against the real Firestore Admin
+adapter when `FIRESTORE_EMULATOR_HOST` is set (otherwise those parametrizations
+are skipped and only the in-memory repository is used). This needs JDK 21+ and
+Node. From `backend/`:
+
+```powershell
+powershell -File .\scripts\run-emulator-tests.ps1
+```
+
+CI runs the same thing with `firebase emulators:exec` (see
+`../.github/workflows/ci.yml`). The emulator project ID is `demo-attune-tests`;
+`demo-` IDs can never reach a real Firebase project. If a failed run leaves the
+emulator holding port 8080, stop the leftover `java` process before retrying.
+
+The in-memory repository enforces Firestore's path rules (documents have an even
+number of path segments, collections an odd number) so path mistakes fail in
+unit tests too.
+
 The API contract and collection model are documented in
-[`../docs/api_integration.md`](../docs/api_integration.md). Current tests use
-synthetic claims/data and an injected in-memory repository. **They do not verify
-Firestore Emulator behavior or live Firebase Authentication/Firestore access.**
-No Firestore rules or indexes are deployed automatically; review
+[`../docs/api_integration.md`](../docs/api_integration.md). Tests use synthetic
+claims/data. **They still do not verify live Firebase Authentication or a real
+Firestore project** (only the emulator). No Firestore rules or indexes are
+deployed automatically; review
 [`../docs/firestore_indexes.md`](../docs/firestore_indexes.md) before a deliberate
 deployment. EEG inference, webcam processing, and AI Buddy remain unavailable
 without their approved artifacts/providers.

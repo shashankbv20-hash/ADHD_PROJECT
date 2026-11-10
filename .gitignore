@@ -55,3 +55,11 @@ frontend/next-env.d.ts
 /backend/.ruff_cache/
 /backend/.coverage
 /backend/htmlcov/
+
+# test output
+/frontend/test-results/
+/frontend/playwright-report/
+/frontend/blob-report/
+/frontend/coverage/
+/backend/firestore-debug.log
+/backend/ui-debug.log

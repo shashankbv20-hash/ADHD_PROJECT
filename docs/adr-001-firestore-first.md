@@ -49,7 +49,7 @@ retry-stable key is more suitable.
 | `.../activities/{assignmentId}/events/{trialIndex}` | One deterministic, retry-safe event document per trial; no event stream is embedded in a growing session document. |
 | `subjects/{subjectId}/sessions/{sessionId}/feelingCheckIns/{pre\|post}` | Consent-gated check-in document with actor and recorded time. |
 | `subjects/{subjectId}/activitySummaries/{assignmentId}` | Server-calculated summary, provenance, calculation version and source IDs. |
-| `subjects/{subjectId}/digitalTwin/current` and `.../history/{historyId}` | Current derived profile and immutable versioned snapshots/source summary IDs. |
+| `subjects/{subjectId}/digitalTwin/current` and `subjects/{subjectId}/digitalTwinHistory/{historyId}` | Current derived profile and immutable versioned snapshots/source summary IDs. History is a sibling collection: `digitalTwin/history/{id}` would be an invalid (odd-length) Firestore document path. |
 | `subjects/{subjectId}/reports/{reportId}` | Idempotent report metadata and derived content. |
 | `subjects/{subjectId}/reportIdempotency/{keyHash}` | Stable retry-key claim and fingerprint for report creation. |
 | `subjects/{subjectId}/webcamFeatureRecords/{recordId}` | Planned compact derived features only; no raw webcam video. |

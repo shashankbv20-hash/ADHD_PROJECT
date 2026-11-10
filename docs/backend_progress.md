@@ -66,13 +66,19 @@ object storage; raw EEG and webcam video are not put into Firestore.
 
 ## Validation
 
-- `python -m pytest -q` from `backend/`: **18 passed** (synthetic data and
-  in-memory repository; no Docker/database required).
-- `ruff check app tests`, `ruff format --check app tests`,
-  `python -m compileall -q app tests`, and `pip check` passed.
-- Frontend `npm run lint`, `npm run typecheck`, and `npm run build` passed; the
-  generated route list matches the existing application routes.
-- No Firestore Emulator Suite run. No live Firebase Auth or Firestore database
-  operation was verified because no developer ADC/test identity was supplied.
-- Frontend was not modified; lint/typecheck/build are to be rerun for the final
-  repository check.
+- `python -m pytest -q` from `backend/` runs every API/repository test against
+  the in-memory repository, and, when `FIRESTORE_EMULATOR_HOST` is set (see
+  `backend/scripts/run-emulator-tests.ps1` and CI), against the Firestore
+  emulator too: **59 passed** (32 in-memory + 27 emulator), synthetic data only.
+- The emulator run found and fixed a real defect: Twin history was written to
+  the invalid path `subjects/{id}/digitalTwin/history/{historyId}`, so scored
+  session completion returned 503 on real Firestore while passing in memory.
+  History now lives in `subjects/{id}/digitalTwinHistory/{historyId}`; the
+  in-memory repository now rejects invalid path shapes. No live data existed
+  at the old path.
+- `ruff check`, `ruff format --check`, `compileall` and `pip check` pass.
+- Frontend: `npm run lint`, `typecheck`, `npm test` (Vitest unit tests) and
+  `npm run test:e2e` (Playwright smoke tests against a production demo build)
+  are wired into CI (`.github/workflows/ci.yml`).
+- Not verified: live Firebase Auth tokens, a real Firestore project, Firestore
+  rules (no rules-unit-tests yet), and browser tests of Firebase mode.

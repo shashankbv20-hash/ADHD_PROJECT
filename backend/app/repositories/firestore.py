@@ -80,6 +80,22 @@ def _segments(path: str) -> tuple[str, ...]:
     return parts
 
 
+def _document_segments(path: str) -> tuple[str, ...]:
+    """Segments of a document path; like Firestore, document paths have an even number of segments."""
+    parts = _segments(path)
+    if len(parts) % 2:
+        raise ValueError("A document must have an even number of path elements")
+    return parts
+
+
+def _collection_segments(path: str) -> tuple[str, ...]:
+    """Segments of a collection path; like Firestore, collection paths have an odd number of segments."""
+    parts = _segments(path)
+    if len(parts) % 2 == 0:
+        raise ValueError("A collection must have an odd number of path elements")
+    return parts
+
+
 class _FirestoreTransaction:
     def __init__(self, repository: FirestoreRepository, transaction: Any):
         self.repository = repository
@@ -258,12 +274,15 @@ class _MemoryTransaction:
         return self.repository.list(path, filters=filters)
 
     def set(self, path: str, data: dict[str, Any], *, merge: bool = False) -> None:
+        _document_segments(path)
         self.writes.append(("set", path, copy.deepcopy(data), merge))
 
     def update(self, path: str, data: dict[str, Any]) -> None:
+        _document_segments(path)
         self.writes.append(("update", path, copy.deepcopy(data), True))
 
     def delete(self, path: str) -> None:
+        _document_segments(path)
         self.writes.append(("delete", path, None, False))
 
 
@@ -277,11 +296,13 @@ class InMemoryRepository:
         self._lock = RLock()
 
     def get(self, path: str) -> Document | None:
-        _segments(path)
+        _document_segments(path)
         with self._lock:
             data = self._documents.get(path)
             return (
-                Document(document_id=_segments(path)[-1], **copy.deepcopy(data)) if data is not None else None
+                Document(document_id=_document_segments(path)[-1], **copy.deepcopy(data))
+                if data is not None
+                else None
             )
 
     def list(
@@ -292,9 +313,9 @@ class InMemoryRepository:
         order_by: tuple[str, str] | None = None,
         limit: int | None = None,
     ) -> list[Document]:
-        _segments(path)
+        _collection_segments(path)
         prefix = path.strip("/") + "/"
-        depth = len(_segments(path)) + 1
+        depth = len(_collection_segments(path)) + 1
         with self._lock:
             documents = [
                 Document(document_id=key.rsplit("/", 1)[-1], **copy.deepcopy(value))
@@ -350,18 +371,20 @@ class InMemoryRepository:
         return documents[:limit]
 
     def set(self, path: str, data: dict[str, Any], *, merge: bool = False) -> None:
-        _segments(path)
+        _document_segments(path)
         with self._lock:
             current = self._documents.get(path, {}) if merge else {}
             self._documents[path] = {**current, **copy.deepcopy(data)}
 
     def update(self, path: str, data: dict[str, Any]) -> None:
+        _document_segments(path)
         with self._lock:
             if path not in self._documents:
                 raise ApiError(503, "firestore_write_failed", "The requested record could not be updated.")
             self._documents[path].update(copy.deepcopy(data))
 
     def delete(self, path: str) -> None:
+        _document_segments(path)
         with self._lock:
             self._documents.pop(path, None)
 

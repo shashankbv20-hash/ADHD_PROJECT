@@ -103,7 +103,7 @@ def rebuild_digital_twin(
         }
         tx.set(current_path, record)
         tx.set(
-            path("subjects", sid, "digitalTwin", "history", history_id),
+            path("subjects", sid, "digitalTwinHistory", history_id),
             {
                 "id": history_id,
                 "subject_id": sid,

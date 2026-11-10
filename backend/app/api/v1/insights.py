@@ -156,7 +156,7 @@ def subject_digital_twin_history(
 ) -> dict:
     subject = get_subject_for_user(repository, current_user, subject_id)
     history = repository.list(
-        path("subjects", subject.id, "digitalTwin", "history"), order_by=("version", "desc"), limit=100
+        path("subjects", subject.id, "digitalTwinHistory"), order_by=("version", "desc"), limit=100
     )
     audit_access(
         repository,
