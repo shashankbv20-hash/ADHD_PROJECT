@@ -2,6 +2,7 @@ import { ApiClientError, createApiClient } from "@/lib/api-client";
 import type {
   BackendActivitySummary,
   BackendActivitySummaryPage,
+  BackendAuditEvent,
   BackendCapabilities,
   BackendConsent,
   BackendCptEvent,
@@ -14,6 +15,7 @@ import type {
   BackendSubject,
   BackendUser,
   ConsentCreateRequest,
+  DataErasureResult,
   EventBatchResponse,
   ReportCreateRequest,
   SessionCreateRequest,
@@ -141,6 +143,18 @@ export function createBackendClient({
       request<{ items: BackendDigitalTwinHistoryItem[] }>(
         `subjects/${subjectId}/digital-twin/history`,
       ),
+
+    // Data rights (owner only).
+    exportSubjectData: (subjectId: string) =>
+      request<Record<string, unknown>>(`subjects/${subjectId}/export`),
+    listAuditEvents: (subjectId: string, page: { limit?: number } = {}) => {
+      const suffix = page.limit ? `?limit=${page.limit}` : "";
+      return request<{ items: BackendAuditEvent[] }>(`subjects/${subjectId}/audit-events${suffix}`);
+    },
+    eraseSubjectData: (subjectId: string) =>
+      post<DataErasureResult>(`subjects/${subjectId}/data-erasure`, {
+        confirmation: "ERASE MY DATA",
+      }),
 
     listReports: (subjectId: string) =>
       request<{ items: BackendReport[] }>(`subjects/${subjectId}/reports`),

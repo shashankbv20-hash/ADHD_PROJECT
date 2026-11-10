@@ -76,6 +76,17 @@ object storage; raw EEG and webcam video are not put into Firestore.
   History now lives in `subjects/{id}/digitalTwinHistory/{historyId}`; the
   in-memory repository now rejects invalid path shapes. No live data existed
   at the old path.
+- Data rights (`tests/test_data_rights.py`, 9 tests) and `tests/test_checkins.py`
+  (6 tests) run on the in-memory repository: **47 passed, 48 skipped** (the
+  skipped ones are the emulator parametrizations). **The new erasure path
+  (`delete_collection` -> Firestore `recursive_delete`) and the new check-in/data
+  tests have not yet been run against the Firestore emulator**; run
+  `scripts/run-emulator-tests.ps1`.
+- The new tests found and fixed two defects in the existing feeling check-in
+  endpoint (no test covered it): every call returned 500 (`UUID(<UUID>)`), and an
+  identical retry returned 500 because the repository wrapper overwrites a stored
+  `id` field with the document key. Check-in IDs are now deterministic per
+  session and phase.
 - `tests/test_auth_emulator.py` (6 tests) verifies the real Firebase ID-token
   path against the Auth emulator: invalid tokens, profile provisioning, custom
   claim roles, unsupported roles failing closed, revoked tokens, and

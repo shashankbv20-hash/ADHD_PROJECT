@@ -40,6 +40,9 @@ same operation. No data migration or Firestore rules deployment is performed.
 | `GET` | `/api/v1/subjects/{subject_id}/activity-summaries` | Stable cursor-paginated summary history. |
 | `GET` | `/api/v1/subjects/{subject_id}/digital-twin`, `/history` | Current descriptive profile and immutable versions. |
 | `GET`, `POST` | `/api/v1/subjects/{subject_id}/reports` | Read reports or idempotently create report from persisted summaries. |
+| `GET` | `/api/v1/subjects/{subject_id}/export` | **Owner only.** Everything stored for the subject (consents, sessions with trial events and check-ins, summaries, Twin current + history, reports, access log). Audited. |
+| `GET` | `/api/v1/subjects/{subject_id}/audit-events` | **Owner only.** Recorded actions about the subject, newest first. Reports whether the owner performed each action (`actorIsYou`); other accounts' identifiers are never returned. Needs the `auditEvents` composite index. |
+| `POST` | `/api/v1/subjects/{subject_id}/data-erasure` | **Owner only, irreversible, idempotent.** Body `{"confirmation": "ERASE MY DATA"}`. Withdraws active consent first, then deletes sessions (with events/check-ins), summaries, Twin + history, reports and retry records. Keeps the subject, consent history and audit log; sets `data_erased_at`. |
 | `POST` | `/api/v1/ai-buddy/messages` | Authenticated explicit 503; no message is sent/stored without approved provider. |
 
 Errors use `{ "error": { "code", "message", "requestId" } }`. Firestore SDK
@@ -95,6 +98,25 @@ copy or delete is performed.
 EEG model inference, webcam feature extraction and AI Buddy provider remain
 unavailable for missing model/preprocessing artifacts, approved extractor/
 policy and LLM configuration. Their capability is not simulated.
+
+## Data rights (export, access log, erasure)
+
+Implemented in `backend/app/services/data_rights.py`; owner-only (caregivers,
+clinicians and other participants receive 404 and the attempt is audited).
+Policy choices, recorded for review:
+
+- **Erasure removes research data, not the account.** The subject record, the
+  consent history (a record that consent was granted/withdrawn) and the audit
+  log are kept, because they hold no research content and document what happened.
+  Consent is withdrawn first so nothing new is collected during deletion; every
+  step is safe to repeat after a partial failure.
+- **Not covered by erasure:** older summaries written directly to Firestore by
+  the pre-API frontend (`users/{uid}/...`), and runs held in a browser tab. The
+  Data & privacy page says so. A policy for those legacy records is still open.
+- **Retention:** no automatic retention period is enforced; that needs a policy
+  decision.
+- **Confirmation:** the API requires the exact phrase, and the page requires the
+  participant to type it, so a stray or scripted call cannot erase data.
 
 ## Frontend API layer (`frontend/src/lib/backend/`, `frontend/src/features/backend/`)
 
@@ -161,6 +183,12 @@ emulator: missing/garbage tokens, profile provisioning, trusted custom-claim
 roles, unsupported role claims failing closed, revoked sessions, and cross-user
 and clinician isolation. It needs only the Auth emulator (the Firestore
 emulator is used when also running, otherwise the in-memory store).
+
+**Data & privacy page** (`/participant/data`, API-backed mode only): consent
+control, JSON export download, access log (other accounts shown only as
+"another account", with a warning when refused attempts exist) and a
+typed-confirmation erasure card. Without a backend it explains that these
+controls are unavailable instead of offering ones that do nothing.
 
 **Not yet done.** Dedicated progress endpoint display (progress is shown from
 the runs list and the Twin aggregate); consent UI for `eeg_processing` /

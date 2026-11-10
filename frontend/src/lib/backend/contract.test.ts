@@ -35,6 +35,16 @@ function buildRun(participantId: string, runId: string, respond: (isTarget: bool
   });
 }
 
+/** The parts of the data export these tests inspect. */
+interface ExportBundle {
+  subject: { id: string; data_erased_at?: unknown };
+  consents: unknown[];
+  sessions: { activities: { events: unknown[] }[] }[];
+  activitySummaries: unknown[];
+  digitalTwin: { history: unknown[] };
+  reports: unknown[];
+}
+
 describe.skipIf(!baseUrl)("frontend client against the real backend", () => {
   const client = createBackendClient({
     baseUrl: baseUrl ?? "http://127.0.0.1:0",
@@ -229,5 +239,98 @@ describe.skipIf(!baseUrl)("frontend client against the real backend", () => {
     const { consent } = await controller.grantConsent();
     expect(consent.status).toBe("granted");
     expect((await controller.load()).consent.status).toBe("granted");
+  });
+
+  // ---- Data rights (state here: consent granted, 2 saved runs, 1 report, Twin v2) ----
+
+  it("exports everything stored, including trial events, as readable JSON", async () => {
+    const subjectId = (await controller.load()).subjectId as string;
+
+    const { filename, json } = await controller.exportData(subjectId);
+    const bundle = JSON.parse(json) as ExportBundle;
+
+    expect(filename).toMatch(/^attune-data-export-\d{8}\.json$/);
+    expect(bundle.subject.id).toBe(subjectId);
+    expect(bundle.sessions).toHaveLength(2);
+    expect(bundle.sessions[0].activities[0].events).toHaveLength(24);
+    expect(bundle.activitySummaries).toHaveLength(2);
+    expect(bundle.digitalTwin.history).toHaveLength(2);
+    expect(bundle.reports).toHaveLength(1);
+    expect(bundle.consents.length).toBeGreaterThanOrEqual(2);
+    expect(json).not.toContain("request_fingerprint");
+  });
+
+  it("shows an access log that separates the participant from other accounts", async () => {
+    const subjectId = (await controller.load()).subjectId as string;
+    const other = createBackendClient({
+      baseUrl: baseUrl as string,
+      getIdToken: async () => "other-participant-token",
+    });
+    await other.getProgress(subjectId).catch(() => undefined); // refused, but recorded
+
+    const log = await controller.loadAccessLog(subjectId);
+
+    const labels = log.filter((entry) => entry.byYou).map((entry) => entry.label);
+    expect(labels).toContain("Research consent granted");
+    expect(labels).toContain("Data export downloaded");
+    const foreign = log.filter((entry) => !entry.byYou);
+    expect(foreign.length).toBeGreaterThanOrEqual(1);
+    expect(foreign.every((entry) => entry.attention)).toBe(true);
+    expect(JSON.stringify(log)).not.toContain("other-participant-test-uid");
+  });
+
+  it("refuses export and erasure to anyone but the owner, leaving data intact", async () => {
+    const subjectId = (await controller.load()).subjectId as string;
+    const other = createBackendClient({
+      baseUrl: baseUrl as string,
+      getIdToken: async () => "other-participant-token",
+    });
+
+    await expect(other.exportSubjectData(subjectId)).rejects.toMatchObject({ status: 404 });
+    await expect(other.eraseSubjectData(subjectId)).rejects.toMatchObject({ status: 404 });
+    expect((await controller.load()).serverRuns).toHaveLength(2);
+  });
+
+  it("erases research data, withdraws consent, and keeps the audit trail", async () => {
+    const before = await controller.load();
+    const subjectId = before.subjectId as string;
+
+    const result = await controller.eraseData(subjectId);
+
+    expect(result.subjectId).toBe(subjectId);
+    expect(result.withdrawnConsentCount).toBe(1);
+    expect(result.deletedDocumentCounts.activitySummaries).toBe(2);
+    expect(result.deletedDocumentCounts.digitalTwinHistory).toBe(2);
+    expect(result.deletedDocumentCounts.reports).toBe(1);
+
+    const after = await controller.load();
+    expect(after.consent.status).toBe("none");
+    expect(after.serverRuns).toEqual([]);
+    expect(after.sessions).toEqual([]);
+    expect(after.reports).toEqual([]);
+    expect(after.twinHistory).toEqual([]);
+    expect(after.twin).toMatchObject({ summaryCount: 0, status: "insufficient_data" });
+
+    const log = await controller.loadAccessLog(subjectId);
+    expect(log.map((entry) => entry.label)).toContain("Research data erased");
+
+    const { json } = await controller.exportData(subjectId);
+    const bundle = JSON.parse(json) as ExportBundle;
+    expect(bundle.sessions).toEqual([]);
+    expect(bundle.subject.data_erased_at).toBeTruthy();
+  });
+
+  it("after erasure nothing more is saved until consent is granted again, then a fresh start works", async () => {
+    const run = buildRun(participantId, "run-after-erasure", (isTarget) => isTarget);
+
+    await expect(controller.persistRun(run)).rejects.toBeInstanceOf(ConsentRequiredError);
+
+    await controller.grantConsent();
+    // The retry key from before erasure must not break or resurrect anything.
+    const outcome = await controller.persistRun(
+      buildRun(participantId, "run-contract-1", (isTarget) => isTarget),
+    );
+    expect(outcome.serverRunId).toBeTruthy();
+    expect((await controller.load()).serverRuns).toHaveLength(1);
   });
 });

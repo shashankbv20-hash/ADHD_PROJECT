@@ -184,6 +184,23 @@ export interface ReportCreateRequest {
   idempotencyKey: string;
 }
 
+export interface BackendAuditEvent {
+  id: string;
+  action: string;
+  resourceType: string;
+  createdAt: string | null;
+  /** True when the participant's own account performed the action. */
+  actorIsYou: boolean;
+  details: Record<string, string | number | boolean | null>;
+}
+
+export interface DataErasureResult {
+  subjectId: string;
+  erasedAt: string;
+  withdrawnConsentCount: number;
+  deletedDocumentCounts: Record<string, number>;
+}
+
 export interface BackendCapabilities {
   apiVersion: string;
   firestore: { configured: boolean };

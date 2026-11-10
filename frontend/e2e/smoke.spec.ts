@@ -82,6 +82,7 @@ const portalRoutes: Record<Role, string[]> = {
     "/participant/activities/history",
     "/participant/progress",
     "/participant/digital-twin",
+    "/participant/data",
   ],
   clinician: [
     "/clinician",
@@ -136,6 +137,20 @@ test.describe("participant journeys", () => {
       buffer: Buffer.from("not an eeg file"),
     });
     await expect(page.getByText("Choose a .csv, .edf, or .bdf demo file.")).toBeVisible();
+  });
+
+  test("Data & privacy explains it needs the research backend instead of faking controls", async ({ page }) => {
+    await enterDemo(page, "participant");
+    await page.goto("/participant/data");
+    await expect(page.getByText("Not connected to the research backend")).toBeVisible();
+    // No export or erase controls are offered without a backend.
+    await expect(page.getByRole("button", { name: /erase|download my data/i })).toHaveCount(0);
+  });
+
+  test("the navigation links to Data & privacy", async ({ page }) => {
+    await enterDemo(page, "participant");
+    await page.goto("/participant");
+    await expect(page.getByRole("link", { name: "Data & privacy" }).first()).toBeVisible();
   });
 
   test("an empty progress page explains that no scored runs exist yet", async ({ page }) => {

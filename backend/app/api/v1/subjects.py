@@ -20,6 +20,7 @@ from app.schemas import (
     SubjectUpdate,
 )
 from app.services.authorization import audit_access, get_subject_for_user, require_participant_owner
+from app.services.consent import withdraw_consent_record
 
 router = APIRouter(prefix="/subjects", tags=["subjects", "consent"])
 
@@ -466,41 +467,4 @@ def withdraw_consent(
 ):
     subject = get_subject_for_user(repository, current_user, subject_id, write=True)
     require_participant_owner(current_user, subject)
-    cp = path("subjects", subject_id, "consents", consent_id)
-    now = datetime.now(UTC)
-
-    def withdraw(tx):
-        consent = tx.get(cp)
-        if consent is None:
-            raise ApiError(404, "consent_not_found", "The consent record was not found.")
-        scope_path = path("subjects", subject_id, "consentScopes", consent.get("scope"))
-        scope_state = tx.get(scope_path)
-        if consent.get("status") == "granted":
-            tx.update(cp, {"status": "withdrawn", "withdrawn_at": now})
-            consent.update({"status": "withdrawn", "withdrawn_at": now})
-            if scope_state is None or scope_state.get("current_consent_id") == str(consent_id):
-                tx.set(
-                    scope_path,
-                    {
-                        "scope": consent.get("scope"),
-                        "current_consent_id": str(consent_id),
-                        "status": "withdrawn",
-                        "updated_at": now,
-                    },
-                )
-            tx.set(
-                path("auditEvents", str(uuid4())),
-                {
-                    "actor_user_id": str(current_user.id),
-                    "subject_id": str(subject_id),
-                    "action": "consent_withdrawn",
-                    "resource_type": "consent_record",
-                    "resource_id": str(consent_id),
-                    "details": {"scope": consent.get("scope"), "version": consent.get("version")},
-                    "created_at": now,
-                },
-            )
-        return consent
-
-    consent = repository.run_transaction(withdraw)
-    return consent
+    return withdraw_consent_record(repository, current_user, subject_id, consent_id)

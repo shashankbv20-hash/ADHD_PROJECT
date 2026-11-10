@@ -65,6 +65,7 @@ class Repository(Protocol):
     def set(self, path: str, data: dict[str, Any], *, merge: bool = False) -> None: ...
     def update(self, path: str, data: dict[str, Any]) -> None: ...
     def delete(self, path: str) -> None: ...
+    def delete_collection(self, path: str) -> int: ...
     def run_transaction(self, callback: Callable[[Transaction], Any]) -> Any: ...
     def check(self) -> bool: ...
 
@@ -238,6 +239,17 @@ class FirestoreRepository:
         except Exception as exc:
             raise _storage_error(exc) from exc
 
+    def delete_collection(self, path: str) -> int:
+        """Delete every document under a collection, including nested subcollections.
+
+        Returns the number of documents deleted. Safe to repeat (deleting nothing returns 0).
+        """
+        try:
+            _collection_segments(path)
+            return int(self.client.recursive_delete(self.client.collection(path)))
+        except Exception as exc:
+            raise _storage_error(exc) from exc
+
     def run_transaction(self, callback: Callable[[Transaction], Any]) -> Any:
         try:
             from google.cloud import firestore
@@ -387,6 +399,14 @@ class InMemoryRepository:
         _document_segments(path)
         with self._lock:
             self._documents.pop(path, None)
+
+    def delete_collection(self, path: str) -> int:
+        prefix = "/".join(_collection_segments(path)) + "/"
+        with self._lock:
+            keys = [key for key in self._documents if key.startswith(prefix)]
+            for key in keys:
+                del self._documents[key]
+            return len(keys)
 
     def run_transaction(self, callback: Callable[[Transaction], Any]) -> Any:
         with self._lock:

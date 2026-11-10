@@ -309,3 +309,30 @@ class DigitalTwinHistoryRead(ApiModel):
 
 class DigitalTwinHistoryList(ApiModel):
     items: list[DigitalTwinHistoryRead]
+
+
+class AuditEventRead(ApiModel):
+    id: str
+    action: str
+    resource_type: str
+    created_at: datetime | None
+    # Whether the participant's own account performed the action. Other people's
+    # identifiers are intentionally not exposed.
+    actor_is_you: bool
+    details: dict[str, Any]
+
+
+class AuditEventList(ApiModel):
+    items: list[AuditEventRead]
+
+
+class DataErasureRequest(ApiModel):
+    # A fixed phrase, so an accidental or scripted call cannot erase data by itself.
+    confirmation: Literal["ERASE MY DATA"]
+
+
+class DataErasureResult(ApiModel):
+    subject_id: UUID
+    erased_at: datetime
+    withdrawn_consent_count: int
+    deleted_document_counts: dict[str, int]

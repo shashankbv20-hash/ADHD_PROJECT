@@ -18,8 +18,9 @@ import {
   type BackendSyncSnapshot,
   type PersistOutcome,
 } from "@/lib/backend/sync-controller";
+import type { AccessLogEntry } from "@/lib/backend/audit";
 import type { ServerReportView, ServerTwinHistoryEntry, ServerTwinView } from "@/lib/backend/twin";
-import type { BackendSession } from "@/lib/backend/types";
+import type { BackendSession, DataErasureResult } from "@/lib/backend/types";
 import type { CptRunSummary } from "@/types";
 
 export type BackendSyncStatus = "loading" | "ready" | "error";
@@ -38,6 +39,13 @@ interface BackendSyncContextValue {
   reportBusy: boolean;
   reportError: string | null;
   createReport: () => Promise<void>;
+  /** Null until the participant first grants consent (nothing exists to export or erase). */
+  subjectId: string | null;
+  /** Data rights. Each throws an Error with user-safe wording on failure. */
+  exportData: () => Promise<{ filename: string; json: string }>;
+  loadAccessLog: () => Promise<AccessLogEntry[]>;
+  /** Irreversible; the caller must have collected the typed confirmation first. */
+  eraseData: () => Promise<DataErasureResult>;
   /** True while a consent grant or withdrawal is in flight. */
   consentBusy: boolean;
   /** User-safe message for the last consent action failure. */
@@ -167,6 +175,50 @@ export function BackendSyncProvider({
     }
   }, [controller, refresh, snapshot]);
 
+  const subjectId = snapshot?.subjectId ?? null;
+
+  const exportData = useCallback(async () => {
+    if (!subjectId) {
+      throw new Error("There is no saved data to export yet.");
+    }
+
+    try {
+      return await controller.exportData(subjectId);
+    } catch (error) {
+      throw new Error(describeSyncError(error), { cause: error });
+    }
+  }, [controller, subjectId]);
+
+  const loadAccessLog = useCallback(async () => {
+    if (!subjectId) {
+      return [];
+    }
+
+    try {
+      return await controller.loadAccessLog(subjectId);
+    } catch (error) {
+      throw new Error(describeSyncError(error), { cause: error });
+    }
+  }, [controller, subjectId]);
+
+  const eraseData = useCallback(async () => {
+    if (!subjectId) {
+      throw new Error("There is no saved data to erase yet.");
+    }
+
+    let result: DataErasureResult;
+
+    try {
+      result = await controller.eraseData(subjectId);
+    } catch (error) {
+      throw new Error(describeSyncError(error), { cause: error });
+    }
+
+    // Consent is now withdrawn and server data is gone: reload what the screens show.
+    await refresh();
+    return result;
+  }, [controller, refresh, subjectId]);
+
   const persistRun = useCallback(
     async (run: CptRunSummary) => {
       let outcome: PersistOutcome;
@@ -197,6 +249,10 @@ export function BackendSyncProvider({
       reportBusy,
       reportError,
       createReport,
+      subjectId,
+      exportData,
+      loadAccessLog,
+      eraseData,
       consentBusy,
       consentError,
       grantConsent,
@@ -211,6 +267,10 @@ export function BackendSyncProvider({
       reportBusy,
       reportError,
       createReport,
+      subjectId,
+      exportData,
+      loadAccessLog,
+      eraseData,
       consentBusy,
       consentError,
       grantConsent,

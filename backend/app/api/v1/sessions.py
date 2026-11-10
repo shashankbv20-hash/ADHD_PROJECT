@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from fastapi import APIRouter, Depends, Query
 
@@ -251,7 +251,10 @@ def create_feeling_checkin(
     require_active_consent(repo, sid, "research")
     p = path("subjects", sid, "sessions", str(session_id), "feelingCheckIns", payload.phase)
     now = datetime.now(UTC)
-    checkin_id = str(uuid4())
+    # Deterministic per (session, phase): retries return the same ID. The document is
+    # keyed by phase, and the repository wrapper exposes the document key as "id", so
+    # the UUID is kept in its own field.
+    checkin_id = str(uuid5(NAMESPACE_URL, f"feeling-checkin:{session_id}:{payload.phase}"))
     data = {
         "session_id": str(session_id),
         "actor_user_id": str(current_user.id),
@@ -259,7 +262,7 @@ def create_feeling_checkin(
         "mood_rating": payload.mood_rating,
         "energy_rating": payload.energy_rating,
         "recorded_at": now,
-        "id": checkin_id,
+        "checkin_id": checkin_id,
     }
 
     def f(tx):
@@ -295,8 +298,8 @@ def create_feeling_checkin(
 
     existing = repo.run_transaction(f)
     return {
-        "id": UUID(existing.get("id", existing.id)) if existing else UUID(checkin_id),
-        "session_id": UUID(session_id),
+        "id": UUID(checkin_id),
+        "session_id": session_id,
         "phase": payload.phase,
         "mood_rating": payload.mood_rating,
         "energy_rating": payload.energy_rating,

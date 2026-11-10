@@ -10,6 +10,7 @@ import {
   syncScoredCptRun,
   type CptSyncResult,
 } from "@/lib/backend/cpt-sync";
+import { exportFilename, parseAuditEvent, type AccessLogEntry } from "@/lib/backend/audit";
 import { summaryToCptRun } from "@/lib/backend/summary-mapping";
 import {
   parseServerReport,
@@ -19,7 +20,7 @@ import {
   type ServerTwinHistoryEntry,
   type ServerTwinView,
 } from "@/lib/backend/twin";
-import type { BackendConsent, BackendSession } from "@/lib/backend/types";
+import type { BackendConsent, BackendSession, DataErasureResult } from "@/lib/backend/types";
 import type { CptRunSummary } from "@/types";
 
 /** Thrown when a run cannot be saved yet because research consent is missing. */
@@ -193,7 +194,38 @@ export function createBackendSyncController({
     };
   }
 
-  return { load, grantConsent, withdrawConsent, persistRun, createReport };
+  /** Everything stored for this subject, serialized for download. Owner only. */
+  async function exportData(
+    subjectId: string,
+    now: Date = new Date(),
+  ): Promise<{ filename: string; json: string }> {
+    const bundle = await client.exportSubjectData(subjectId);
+    return { filename: exportFilename(now), json: JSON.stringify(bundle, null, 2) };
+  }
+
+  async function loadAccessLog(subjectId: string): Promise<AccessLogEntry[]> {
+    const { items } = await client.listAuditEvents(subjectId, { limit: 200 });
+    return items.map(parseAuditEvent);
+  }
+
+  /**
+   * Irreversible. Withdraws consent and deletes the subject's research data on the
+   * backend. The caller must have obtained the participant's typed confirmation.
+   */
+  async function eraseData(subjectId: string): Promise<DataErasureResult> {
+    return client.eraseSubjectData(subjectId);
+  }
+
+  return {
+    load,
+    grantConsent,
+    withdrawConsent,
+    persistRun,
+    createReport,
+    exportData,
+    loadAccessLog,
+    eraseData,
+  };
 }
 
 export type BackendSyncController = ReturnType<typeof createBackendSyncController>;
