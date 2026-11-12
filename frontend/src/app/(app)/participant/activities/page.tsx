@@ -89,7 +89,7 @@ export default async function ActivitiesPage() {
               Demo activities
             </Badge>
             <span className="text-xs text-ink-subtle">
-              One interactive task · in-memory results
+              Interactive tasks · in-memory results
             </span>
           </div>
         }
@@ -116,9 +116,10 @@ export default async function ActivitiesPage() {
 
       <DemoNotice meta={participantDemoMeta} />
 
-      <Alert tone="info" title="The CPT is ready to try">
-        The Continuous Performance Task is the only interactive activity in this
-        milestone. The other five cards are planned and do not start a task.
+      <Alert tone="info" title="Eleven activities are ready to try">
+        Every card marked Available starts a short practice, then a scored run.
+        Cards marked Planned do not start a task yet. These are demonstration
+        tasks, not clinical assessments.
       </Alert>
 
       <ActivityLibrary activities={activities} />

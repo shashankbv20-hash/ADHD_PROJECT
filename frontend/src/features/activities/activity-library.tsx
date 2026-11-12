@@ -67,8 +67,7 @@ export function ActivityLibrary({
             Activity library
           </h2>
           <p className="mt-0.5 text-xs text-ink-subtle">
-            Six short cognitive activities. Only the CPT is interactive in this
-            milestone.
+            Short cognitive activities. Cards marked Available are interactive.
           </p>
         </div>
         <span className="text-xs text-ink-subtle">
