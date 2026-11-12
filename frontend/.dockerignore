@@ -1,0 +1,14 @@
+node_modules
+.next
+.env*
+!.env.example
+e2e
+e2e-live
+rules-tests
+test-results
+playwright-report*
+*-debug.log
+firebase.*.json
+tsconfig.tsbuildinfo
+Dockerfile
+.dockerignore

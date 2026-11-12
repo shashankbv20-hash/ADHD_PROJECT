@@ -5,7 +5,7 @@ import json
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.auth.dependencies import CurrentUser
 from app.core.errors import ApiError
@@ -29,8 +29,14 @@ from app.services.authorization import (
 from app.services.cpt_scoring import aggregate_cpt_summaries
 from app.services.digital_twin import read_twin_snapshot
 from app.services.pagination import decode_created_cursor, encode_created_cursor
+from app.services.report_pdf import render_report_pdf
 
 router = APIRouter(prefix="/subjects", tags=["analytics", "digital-twin", "reports"])
+
+
+def _cpt_only(records):
+    """Progress, the Twin and reports are CPT-based; other activities are listed separately."""
+    return [item for item in records if item.get("activity_code", "cpt") == "cpt"]
 
 
 def _ordered(records, descending=False):
@@ -73,7 +79,7 @@ def subject_progress(
     subject_id: UUID, current_user: CurrentUser, repository: Repository = Depends(get_repository)
 ) -> dict:
     subject = get_subject_for_user(repository, current_user, subject_id)
-    summaries = _ordered(repository.list(path("subjects", subject.id, "activitySummaries")))
+    summaries = _ordered(_cpt_only(repository.list(path("subjects", subject.id, "activitySummaries"))))
     aggregate = aggregate_cpt_summaries([item.metrics for item in summaries])
     audit_access(
         repository,
@@ -188,6 +194,35 @@ def subject_reports(
     return {"items": [_report_read(report) for report in reports]}
 
 
+@router.get("/{subject_id}/reports/{report_id}/pdf")
+def subject_report_pdf(
+    subject_id: UUID,
+    report_id: str,
+    current_user: CurrentUser,
+    repository: Repository = Depends(get_repository),
+) -> Response:
+    subject = get_subject_for_user(repository, current_user, subject_id)
+    report = repository.get(path("subjects", subject.id, "reports", report_id))
+    if report is None:
+        raise ApiError(404, "report_not_found", "The report was not found.")
+    audit_access(
+        repository,
+        current_user,
+        "report_pdf_exported",
+        "report",
+        subject_id=subject.id,
+        resource_id=report_id,
+    )
+    return Response(
+        content=render_report_pdf(dict(report)),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="attune-report-{report_id[:8]}.pdf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.post("/{subject_id}/reports", response_model=ReportRead, status_code=201)
 def create_subject_report(
     subject_id: UUID,
@@ -237,7 +272,7 @@ def create_subject_report(
         ]
     else:
         summaries = repository.list(path("subjects", sid, "activitySummaries"))
-    summaries = _ordered(summaries)
+    summaries = _ordered(_cpt_only(summaries))
     if not summaries:
         raise ApiError(
             409, "report_insufficient_data", "No persisted activity summaries are available for this report."

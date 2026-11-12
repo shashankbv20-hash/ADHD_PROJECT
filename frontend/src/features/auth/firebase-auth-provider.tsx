@@ -37,6 +37,7 @@ import {
   saveFirebaseCptRun,
   saveFirebaseReportSummary,
   updateFirebaseCloudSyncPreference,
+  updateFirebaseDisplayName,
 } from "@/lib/firebase/firebase-data-service";
 import type {
   FirebaseAccountSnapshot,
@@ -75,6 +76,7 @@ interface FirebaseAuthContextValue {
   retryProfileSetup: () => Promise<void>;
   reloadAccount: () => Promise<void>;
   setCloudSyncEnabled: (enabled: boolean) => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
   persistCptRun: (run: CptRunSummary) => Promise<FirebaseDigitalTwinSnapshot>;
   saveReportSummary: (run: CptRunSummary) => Promise<FirebaseSavedReportSummary>;
 }
@@ -565,6 +567,33 @@ export function FirebaseAuthProvider({
     [],
   );
 
+  const updateDisplayName = useCallback(async (displayName: string) => {
+    const services = getFirebaseClientServices();
+    const currentUser = userRef.current;
+    const name = displayName.trim();
+
+    if (!services || !currentUser) {
+      throw new FirebaseOperationError("invalid-credentials", "Sign in before changing your name.");
+    }
+    if (name.length < 1 || name.length > 120) {
+      throw new FirebaseOperationError("invalid-data", "Use between 1 and 120 characters.");
+    }
+
+    try {
+      const profile = await updateFirebaseDisplayName(services.db, currentUser.uid, name);
+      await updateProfile(currentUser, { displayName: name });
+      const currentAccount = accountRef.current;
+
+      if (currentAccount?.profile.uid === currentUser.uid) {
+        const nextAccount = { ...currentAccount, profile };
+        accountRef.current = nextAccount;
+        setAccount(nextAccount);
+      }
+    } catch (caughtError) {
+      throw normalizeFirebaseError(caughtError);
+    }
+  }, []);
+
   const persistCptRun = useCallback(
     async (run: CptRunSummary) => {
       const services = getFirebaseClientServices();
@@ -666,6 +695,7 @@ export function FirebaseAuthProvider({
       retryProfileSetup,
       reloadAccount,
       setCloudSyncEnabled,
+      updateDisplayName,
       persistCptRun,
       saveReportSummary,
     }),
@@ -686,6 +716,7 @@ export function FirebaseAuthProvider({
       retryProfileSetup,
       reloadAccount,
       setCloudSyncEnabled,
+      updateDisplayName,
       persistCptRun,
       saveReportSummary,
     ],

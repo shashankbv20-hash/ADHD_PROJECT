@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from app.db.base import Base
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -22,8 +23,6 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.db.base import Base
 
 
 def uuid_column() -> Mapped[UUID]:

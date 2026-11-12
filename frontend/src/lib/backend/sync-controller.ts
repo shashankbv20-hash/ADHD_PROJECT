@@ -6,13 +6,38 @@ import {
 } from "@/lib/backend/consent";
 import {
   ensureOwnSubject,
+  eventsToBackend,
   findOwnSubject,
+  syncScoredActivity,
   syncScoredCptRun,
   type CptSyncResult,
 } from "@/lib/backend/cpt-sync";
 import { exportFilename, parseAuditEvent, type AccessLogEntry } from "@/lib/backend/audit";
 import { createCaregiverSharing } from "@/lib/backend/caregiver";
-import { summaryToCptRun } from "@/lib/backend/summary-mapping";
+import { fetchAllPages, PAGE_SIZE } from "@/lib/backend/paging";
+import {
+  summaryToCptRun,
+  summaryToGoNoGoRun,
+  summaryToNBackRun,
+  summaryToStopSignalRun,
+  summaryToStroopRun,
+  summaryToTaskSwitchingRun,
+  summaryToVisualSearchRun,
+  summaryToPlanningPuzzleRun,
+  summaryToVisualSequenceRun,
+  summaryToTimePerceptionRun,
+  summaryToObjectTrackingRun,
+  type GoNoGoRunView,
+  type NBackRunView,
+  type StopSignalRunView,
+  type StroopRunView,
+  type TaskSwitchingRunView,
+  type VisualSearchRunView,
+  type PlanningPuzzleRunView,
+  type VisualSequenceRunView,
+  type TimePerceptionRunView,
+  type ObjectTrackingRunView,
+} from "@/lib/backend/summary-mapping";
 import {
   parseServerReport,
   parseServerTwin,
@@ -21,8 +46,20 @@ import {
   type ServerTwinHistoryEntry,
   type ServerTwinView,
 } from "@/lib/backend/twin";
-import type { BackendConsent, BackendSession, DataErasureResult } from "@/lib/backend/types";
-import type { CptRunSummary } from "@/types";
+import type {
+  BackendConsent,
+  BackendSession,
+  BackendStopSignalEvent,
+  BackendStroopEvent,
+  BackendTaskSwitchingEvent,
+  BackendVisualSearchEvent,
+  BackendPlanningPuzzleEvent,
+  BackendVisualSequenceEvent,
+  BackendTimePerceptionEvent,
+  BackendObjectTrackingEvent,
+  DataErasureResult,
+} from "@/lib/backend/types";
+import type { CptRunSummary, CptTrialEvent } from "@/types";
 
 /** Thrown when a run cannot be saved yet because research consent is missing. */
 export class ConsentRequiredError extends Error {
@@ -40,21 +77,54 @@ export interface BackendSyncSnapshot {
   consent: { status: "granted"; id: string; version: string } | { status: "none" };
   /** Server-calculated scored runs, newest first. Trial events stay on the server. */
   serverRuns: CptRunSummary[];
+  /** Saved Go/No-Go runs, newest first (kept apart from the CPT-based Twin). */
+  goNoGoRuns: GoNoGoRunView[];
+  /** Saved N-back runs, newest first. */
+  nBackRuns: NBackRunView[];
+  /** Saved Stop-Signal runs, newest first. */
+  stopSignalRuns: StopSignalRunView[];
+  /** Saved Stroop runs, newest first. */
+  stroopRuns: StroopRunView[];
+  /** Saved Task Switching runs, newest first. */
+  taskSwitchingRuns: TaskSwitchingRunView[];
+  /** Saved Visual Search runs, newest first. */
+  visualSearchRuns: VisualSearchRunView[];
+  /** Saved Planning Puzzle runs, newest first. */
+  planningPuzzleRuns: PlanningPuzzleRunView[];
+  /** Saved Visual Sequence runs, newest first. */
+  visualSequenceRuns: VisualSequenceRunView[];
+  /** Saved Time Perception runs, newest first. */
+  timePerceptionRuns: TimePerceptionRunView[];
+  /** Saved Multiple Object Tracking runs, newest first. */
+  objectTrackingRuns: ObjectTrackingRunView[];
   /** Server-side Digital Twin (null until a subject exists). */
   twin: ServerTwinView | null;
   twinHistory: ServerTwinHistoryEntry[];
   reports: ServerReportView[];
   sessions: BackendSession[];
+  /** True when the page cap was hit, so older runs or sessions exist that are not shown. */
+  truncated: boolean;
 }
 
 const EMPTY_SNAPSHOT: BackendSyncSnapshot = {
   subjectId: null,
   consent: { status: "none" },
   serverRuns: [],
+  goNoGoRuns: [],
+  nBackRuns: [],
+  stopSignalRuns: [],
+  stroopRuns: [],
+  taskSwitchingRuns: [],
+  visualSearchRuns: [],
+  planningPuzzleRuns: [],
+  visualSequenceRuns: [],
+  timePerceptionRuns: [],
+  objectTrackingRuns: [],
   twin: null,
   twinHistory: [],
   reports: [],
   sessions: [],
+  truncated: false,
 };
 
 export interface PersistOutcome {
@@ -128,13 +198,15 @@ export function createBackendSyncController({
       return EMPTY_SNAPSHOT;
     }
 
-    const [{ items: consents }, firstPage, twin, history, reports, sessions] = await Promise.all([
+    const [{ items: consents }, summaries, twin, history, reports, sessions] = await Promise.all([
       client.listConsents(subject.id),
-      client.listActivitySummaries(subject.id, { limit: 50 }),
+      fetchAllPages((cursor) =>
+        client.listActivitySummaries(subject.id, { limit: PAGE_SIZE, cursor }),
+      ),
       client.getDigitalTwin(subject.id),
       client.listDigitalTwinHistory(subject.id),
       client.listReports(subject.id),
-      client.listSessions(subject.id, { limit: 50 }),
+      fetchAllPages((cursor) => client.listSessions(subject.id, { limit: PAGE_SIZE, cursor })),
     ]);
     const granted = activeResearchConsent(consents);
 
@@ -143,13 +215,54 @@ export function createBackendSyncController({
       consent: granted
         ? { status: "granted", id: granted.id, version: granted.version }
         : { status: "none" },
-      serverRuns: firstPage.items
+      serverRuns: summaries.items
         .filter((summary) => summary.activityCode === "cpt")
         .map((summary) => summaryToCptRun(summary, participantId)),
+      goNoGoRuns: summaries.items
+        .filter((summary) => summary.activityCode === "go-no-go")
+        .map(summaryToGoNoGoRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      nBackRuns: summaries.items
+        .filter((summary) => summary.activityCode === "n-back")
+        .map(summaryToNBackRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      timePerceptionRuns: summaries.items
+        .filter((summary) => summary.activityCode === "time-perception")
+        .map(summaryToTimePerceptionRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      objectTrackingRuns: summaries.items
+        .filter((summary) => summary.activityCode === "multiple-object-tracking")
+        .map(summaryToObjectTrackingRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      visualSequenceRuns: summaries.items
+        .filter((summary) => summary.activityCode === "visual-sequence")
+        .map(summaryToVisualSequenceRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      planningPuzzleRuns: summaries.items
+        .filter((summary) => summary.activityCode === "planning-puzzle")
+        .map(summaryToPlanningPuzzleRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      visualSearchRuns: summaries.items
+        .filter((summary) => summary.activityCode === "visual-search")
+        .map(summaryToVisualSearchRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      taskSwitchingRuns: summaries.items
+        .filter((summary) => summary.activityCode === "task-switching")
+        .map(summaryToTaskSwitchingRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      stroopRuns: summaries.items
+        .filter((summary) => summary.activityCode === "stroop")
+        .map(summaryToStroopRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
+      stopSignalRuns: summaries.items
+        .filter((summary) => summary.activityCode === "stop-signal")
+        .map(summaryToStopSignalRun)
+        .sort((left, right) => right.completedAt.localeCompare(left.completedAt)),
       twin: parseServerTwin(twin),
       twinHistory: parseTwinHistory(history.items),
       reports: reports.items.map(parseServerReport),
       sessions: sessions.items,
+      truncated: summaries.truncated || sessions.truncated,
     };
   }
 
@@ -158,6 +271,14 @@ export function createBackendSyncController({
    * from the number of saved runs, so pressing the button twice for the same data
    * returns the same report instead of creating a duplicate.
    */
+  async function downloadReportPdf(
+    subjectId: string,
+    reportId: string,
+  ): Promise<{ filename: string; blob: Blob }> {
+    const blob = await client.downloadReportPdf(subjectId, reportId);
+    return { filename: `attune-report-${reportId.slice(0, 8)}.pdf`, blob };
+  }
+
   async function createReport(subjectId: string, savedRunCount: number): Promise<ServerReportView> {
     const report = await client.createReport(subjectId, {
       idempotencyKey: `report-${subjectId}-${savedRunCount}`,
@@ -201,6 +322,226 @@ export function createBackendSyncController({
     };
   }
 
+  /** Saves one scored Go/No-Go run; the server validates the trials and calculates the summary. */
+  async function persistGoNoGoRun(
+    runId: string,
+    events: readonly CptTrialEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "go-no-go",
+      idempotencyKey: `go-no-go-run-${runId}`,
+      events: eventsToBackend(events),
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server validated the trials and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored N-back run; the server validates the trials and calculates the summary. */
+  async function persistNBackRun(
+    runId: string,
+    events: readonly CptTrialEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "n-back",
+      idempotencyKey: `n-back-run-${runId}`,
+      events: eventsToBackend(events),
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server validated the trials and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Time Perception run; the server checks the durations and calculates the summary. */
+  async function persistTimePerceptionRun(
+    runId: string,
+    events: readonly BackendTimePerceptionEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "time-perception",
+      idempotencyKey: `time-perception-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server checked the trials and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Multiple Object Tracking run; the server checks the picks and calculates the summary. */
+  async function persistObjectTrackingRun(
+    runId: string,
+    events: readonly BackendObjectTrackingEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "multiple-object-tracking",
+      idempotencyKey: `multiple-object-tracking-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server checked the trials and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Visual Sequence run; the server checks the answers and calculates the summary. */
+  async function persistVisualSequenceRun(
+    runId: string,
+    events: readonly BackendVisualSequenceEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "visual-sequence",
+      idempotencyKey: `visual-sequence-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server checked the answers and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Planning Puzzle run; the server replays the moves and calculates the summary. */
+  async function persistPlanningPuzzleRun(
+    runId: string,
+    events: readonly BackendPlanningPuzzleEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "planning-puzzle",
+      idempotencyKey: `planning-puzzle-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server replayed the moves and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Visual Search run; the server validates the trials and calculates the summary. */
+  async function persistVisualSearchRun(
+    runId: string,
+    events: readonly BackendVisualSearchEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "visual-search",
+      idempotencyKey: `visual-search-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server validated the trials and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Task Switching run; the server validates the trials and calculates the summary. */
+  async function persistTaskSwitchingRun(
+    runId: string,
+    events: readonly BackendTaskSwitchingEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "task-switching",
+      idempotencyKey: `task-switching-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server validated the trials and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Stroop run; the server validates the trials and calculates the summary. */
+  async function persistStroopRun(
+    runId: string,
+    events: readonly BackendStroopEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "stroop",
+      idempotencyKey: `stroop-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server validated the trials and calculated the summary.",
+    };
+  }
+
+  /** Saves one scored Stop-Signal run; the server validates the trials and calculates the summary. */
+  async function persistStopSignalRun(
+    runId: string,
+    events: readonly BackendStopSignalEvent[],
+  ): Promise<PersistOutcome> {
+    const result = await syncScoredActivity(client, {
+      activityCode: "stop-signal",
+      idempotencyKey: `stop-signal-run-${runId}`,
+      events: [...events],
+    });
+
+    if (result.status === "consent-required") {
+      throw new ConsentRequiredError();
+    }
+
+    return {
+      serverRunId: result.summary?.sessionActivityId ?? null,
+      message:
+        "Saved to the research backend. The server validated the trials and calculated the summary.",
+    };
+  }
+
   /** Everything stored for this subject, serialized for download. Owner only. */
   async function exportData(
     subjectId: string,
@@ -231,7 +572,18 @@ export function createBackendSyncController({
     grantConsent,
     withdrawConsent,
     persistRun,
+    persistGoNoGoRun,
+    persistNBackRun,
+    persistTimePerceptionRun,
+    persistObjectTrackingRun,
+    persistVisualSequenceRun,
+    persistPlanningPuzzleRun,
+    persistVisualSearchRun,
+    persistTaskSwitchingRun,
+    persistStroopRun,
+    persistStopSignalRun,
     createReport,
+    downloadReportPdf,
     exportData,
     loadAccessLog,
     eraseData,

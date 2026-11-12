@@ -52,6 +52,89 @@ function parseAggregate(value: unknown): ServerAggregateMetrics | null {
   };
 }
 
+export type TwinConfidence = "insufficient" | "low" | "moderate" | "higher";
+
+export interface TwinTrendPoint {
+  run: number;
+  completedAt: string | null;
+  accuracyPercent: number | null;
+  meanHitReactionTimeMs: number | null;
+  reactionTimeSdMs: number | null;
+  reactionTimeCv: number | null;
+}
+
+export interface TwinBlockPoint {
+  block: number;
+  runs: number;
+  accuracyPercent: number | null;
+  meanHitReactionTimeMs: number | null;
+}
+
+/** Twin v2 insights. Every part is null/empty when the server had too little data. */
+export interface ServerTwinInsights {
+  confidence: TwinConfidence;
+  runCount: number;
+  trend: TwinTrendPoint[];
+  blockProfile: TwinBlockPoint[];
+  spread: { runsUsed: number; meanSdMs: number | null; meanCv: number | null } | null;
+  withinSession: {
+    runsUsed: number;
+    accuracyChangePoints: number | null;
+    reactionTimeChangeMs: number | null;
+  } | null;
+}
+
+const CONFIDENCE_LEVELS: readonly TwinConfidence[] = ["insufficient", "low", "moderate", "higher"];
+
+function asArray(value: unknown): Json[] {
+  return Array.isArray(value)
+    ? value.map(asRecord).filter((item): item is Json => item !== null)
+    : [];
+}
+
+/** Older (v1) Twin versions have no insights: this returns null for them. */
+export function parseInsights(profile: Json): ServerTwinInsights | null {
+  const insights = asRecord(profile.insights);
+  if (!insights) return null;
+
+  const confidence = CONFIDENCE_LEVELS.find((level) => level === insights.confidence) ?? "insufficient";
+  const spread = asRecord(insights.reaction_time_spread);
+  const within = asRecord(insights.within_session_change);
+
+  return {
+    confidence,
+    runCount: asNumber(insights.run_count) ?? 0,
+    trend: asArray(insights.trend).map((point) => ({
+      run: asNumber(point.run) ?? 0,
+      completedAt: asString(point.completed_at),
+      accuracyPercent: asNumber(point.accuracy_percent),
+      meanHitReactionTimeMs: asNumber(point.mean_hit_reaction_time_ms),
+      reactionTimeSdMs: asNumber(point.reaction_time_sd_ms),
+      reactionTimeCv: asNumber(point.reaction_time_cv),
+    })),
+    blockProfile: asArray(insights.block_profile).map((block) => ({
+      block: asNumber(block.block) ?? 0,
+      runs: asNumber(block.runs) ?? 0,
+      accuracyPercent: asNumber(block.accuracy_percent),
+      meanHitReactionTimeMs: asNumber(block.mean_hit_reaction_time_ms),
+    })),
+    spread: spread
+      ? {
+          runsUsed: asNumber(spread.runs_used) ?? 0,
+          meanSdMs: asNumber(spread.mean_sd_ms),
+          meanCv: asNumber(spread.mean_cv),
+        }
+      : null,
+    withinSession: within
+      ? {
+          runsUsed: asNumber(within.runs_used) ?? 0,
+          accuracyChangePoints: asNumber(within.accuracy_change_points),
+          reactionTimeChangeMs: asNumber(within.reaction_time_change_ms),
+        }
+      : null,
+  };
+}
+
 export interface ServerTwinView {
   version: number;
   status: "available" | "insufficient_data";
@@ -66,6 +149,8 @@ export interface ServerTwinView {
   qualityFlags: string[];
   dataProvenance: string | null;
   updatedAt: string | null;
+  /** Null for Twin versions calculated before v2. */
+  insights: ServerTwinInsights | null;
 }
 
 export function parseServerTwin(twin: BackendDigitalTwin): ServerTwinView {
@@ -86,6 +171,7 @@ export function parseServerTwin(twin: BackendDigitalTwin): ServerTwinView {
     qualityFlags: twin.qualityFlags,
     dataProvenance: asString(profile.data_provenance),
     updatedAt: twin.updatedAt,
+    insights: parseInsights(profile),
   };
 }
 

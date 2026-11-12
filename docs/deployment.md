@@ -2,8 +2,10 @@
 
 Status: **a starting point, not a verified production setup.** The container and the
 hardening below were checked locally (the API start command, headers, size and rate
-limits, the production frontend build). A container image build, a real deployment, and
-every item under "Before real participants" have **not** been done.
+limits, the production frontend build). GitHub Actions (run 42850582795 on `c75563c`)
+also confirmed the container image builds and the backend tests pass against the Auth and
+Firestore emulators. A real deployment and every item under "Before real participants"
+have **not** been done.
 
 ## Shape of the system
 
@@ -13,6 +15,13 @@ every item under "Before real participants" have **not** been done.
 - **API**: FastAPI (`backend/`, `Dockerfile`). Stateless; stores data in Cloud Firestore and
   verifies Firebase ID tokens. Run any number of instances.
 - **Identity and data**: Firebase Authentication and Cloud Firestore (ADR-001).
+
+## Containers
+
+- API: `backend/Dockerfile` (CI builds it).
+- Frontend: `frontend/Dockerfile` (multi-stage; public `NEXT_PUBLIC_*` values are build
+  arguments, see the header of the file). CI builds it with the default demo provider; it has
+  not been run on a real host.
 
 ## Backend configuration
 
@@ -29,6 +38,7 @@ All via environment variables (or `backend/.env` locally; never commit it).
 | `RATE_LIMIT_PER_MINUTE` | `240` | Per authenticated caller (hashed token). `0` disables. |
 | `RATE_LIMIT_IP_PER_MINUTE` | `600` | Per client address. `0` disables. |
 | `TRUST_PROXY_HEADERS` | `false` | Use `X-Forwarded-For` for the client address. Enable only behind a proxy that overwrites it. |
+| `METRICS_TOKEN` | unset | Enables `GET /metrics` (Prometheus text) for callers sending this bearer token. See [observability](observability.md). |
 | `FORWARDED_ALLOW_IPS` | `127.0.0.1` | (uvicorn) proxies whose forwarded headers are honoured. |
 
 **Credentials.** Use workload identity / Application Default Credentials. Do not bake
@@ -45,12 +55,16 @@ when unavailable). Both are exempt from rate limiting.
 - Request size limit and rate limits, as above.
 - The rate limiter is **in-process**: each instance counts separately, so N instances allow
   roughly N times the limit. It is a safety net against runaway clients, not a global
-  control. Put a real limiter in front (for example Cloud Armor or an API gateway) before
-  serious exposure.
+  control. Ready-to-review edge configurations are in `deploy/edge/` (`cloud-armor.sh` for
+  Google Cloud, `nginx.conf` for self-hosting). **They have not been run or verified.**
+  Put one in front before serious exposure, and set `TRUST_PROXY_HEADERS` accordingly.
 - The frontend sets no script-restricting CSP (a nonce-based CSP needs fully dynamic
   rendering, which the app does not use) and no Cross-Origin-Opener-Policy (it would break
   Firebase popup sign-in). Revisit if the rendering model changes.
-- **Not implemented:** Firebase App Check, bot protection, WAF rules, alerting.
+- Metrics and alert rule examples: [observability](observability.md) (implemented in the
+  API; not connected to a monitoring service).
+- **Not implemented:** Firebase App Check, bot protection, WAF rules, a connected alerting
+  service, browser error reporting.
 
 ## Dependency audit
 
@@ -70,10 +84,9 @@ Rules and index definitions live in `frontend/firestore.rules` and
 npx firebase-tools@15.34.2 deploy --only firestore:rules,firestore:indexes --project <project-id>
 ```
 
-The `auditEvents` index (`subject_id` ASC, `created_at` DESC) is defined but **not
-deployed**; the access log query needs it. The other composite queries listed in
-`docs/firestore_indexes.md` are not yet defined in the file; the emulator does not enforce
-indexes, so these are unproven against a real project until deployed and exercised.
+All composite indexes the API queries need are defined in `frontend/firestore.indexes.json`
+(see `docs/firestore_indexes.md`) but **not deployed**. The emulator does not enforce
+indexes, so they are unproven against a real project until deployed and exercised.
 
 ## Assigning roles
 
@@ -95,4 +108,4 @@ operator with `backend/scripts/set_role.py` (see its docstring). Users must sign
    log retention.
 6. App Check and an edge rate limiter.
 7. A live end-to-end test of the Firebase-mode screens against a staging project.
-8. Verify the container image builds and runs on the target platform.
+8. Verify the container image runs on the target platform (CI proves it builds).

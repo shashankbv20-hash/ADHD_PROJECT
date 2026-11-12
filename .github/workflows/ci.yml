@@ -34,6 +34,8 @@ jobs:
       - run: npm test
       - name: Build (default demo provider; no secrets needed)
         run: npm run build
+      - name: Container image builds (not pushed)
+        run: docker build -t attune-web:ci .
 
   backend:
     name: Backend (ruff, pytest incl. Firestore emulator)
@@ -111,6 +113,70 @@ jobs:
         env:
           BACKEND_CONTRACT_URL: http://127.0.0.1:8765
         run: npx vitest run src/lib/backend/contract.test.ts
+
+  rules:
+    name: Firestore security rules (emulator)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: npm ci
+      - name: Cache Firestore emulator jar
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-firestore-v1.22.0
+      - run: npm run test:rules
+
+  e2e-live:
+    name: Live signed-in e2e (Auth + Firestore emulators, real API)
+    runs-on: ubuntu-latest
+    needs: frontend
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: python -m pip install -r ../backend/requirements-dev.txt
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Cache Firestore emulator jar
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-firestore-v1.22.0
+      - run: npm run test:e2e:live
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-live
+          path: frontend/playwright-report-live
+          retention-days: 7
 
   e2e:
     name: Frontend e2e (Playwright smoke tests)

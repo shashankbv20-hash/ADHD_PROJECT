@@ -87,10 +87,10 @@ object storage; raw EEG and webcam video are not put into Firestore.
   returns only the declared fields.
 - Data rights (`tests/test_data_rights.py`, 9 tests) and `tests/test_checkins.py`
   (6 tests) run on the in-memory repository: **47 passed, 48 skipped** (the
-  skipped ones are the emulator parametrizations). **The new erasure path
-  (`delete_collection` -> Firestore `recursive_delete`) and the new check-in/data
-  tests have not yet been run against the Firestore emulator**; run
-  `scripts/run-emulator-tests.ps1`.
+  skipped ones are the emulator parametrizations). The erasure path
+  (`delete_collection` -> Firestore `recursive_delete`) and the check-in/data tests
+  have since passed against the Firestore emulator in CI (run 42850582795); run
+  `scripts/run-emulator-tests.ps1` locally.
 - The new tests found and fixed two defects in the existing feeling check-in
   endpoint (no test covered it): every call returned 500 (`UUID(<UUID>)`), and an
   identical retry returned 500 because the repository wrapper overwrites a stored

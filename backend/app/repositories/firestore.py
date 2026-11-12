@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from threading import RLock
@@ -114,7 +115,7 @@ class _FirestoreTransaction:
     def list(self, path: str, *, filters: tuple[tuple[str, str, Any], ...] = ()) -> list[Document]:
         query = self.repository.client.collection(path)
         for field, operation, value in filters:
-            query = query.where(field, operation, value)
+            query = query.where(filter=_field_filter(field, operation, value))
         return [
             Document(document_id=snapshot.id, **snapshot.to_dict())
             for snapshot in query.stream(transaction=self.transaction)
@@ -128,6 +129,13 @@ class _FirestoreTransaction:
 
     def delete(self, path: str) -> None:
         self.transaction.delete(self.repository.client.document(path))
+
+
+def _field_filter(field: str, operation: str, value: Any) -> Any:
+    """Keyword ``filter=`` form; the positional ``where(field, op, value)`` form is deprecated."""
+    from google.cloud.firestore_v1.base_query import FieldFilter
+
+    return FieldFilter(field, operation, value)
 
 
 class FirestoreRepository:
@@ -144,6 +152,23 @@ class FirestoreRepository:
     ) -> FirestoreRepository | None:
         if not project_id:
             return None
+        if os.environ.get("FIRESTORE_EMULATOR_HOST") and project_id.startswith("demo-"):
+            # Local emulator for a "demo-" project (tests and live end-to-end runs): there are no
+            # credentials, and a demo project can never reach a real Firestore database.
+            try:
+                from google.auth.credentials import AnonymousCredentials
+                from google.cloud import firestore as google_firestore
+
+                return cls(
+                    google_firestore.Client(
+                        project=project_id,
+                        credentials=AnonymousCredentials(),
+                        database=database_id,
+                    )
+                )
+            except Exception as exc:
+                logger.warning("firestore_emulator_initialization_failed error_type=%s", type(exc).__name__)
+                return None
         try:
             import firebase_admin
             from firebase_admin import firestore
@@ -177,7 +202,7 @@ class FirestoreRepository:
         try:
             query = self.client.collection(path)
             for field, operation, value in filters:
-                query = query.where(field, operation, value)
+                query = query.where(filter=_field_filter(field, operation, value))
             if order_by:
                 from google.cloud.firestore_v1 import Query
 

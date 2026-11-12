@@ -188,6 +188,20 @@ function fakeClient(overrides: Record<string, unknown> = {}) {
 
 describe("backend sync controller", () => {
   describe("load", () => {
+    it("follows cursors so runs beyond the first page are loaded", async () => {
+      const { client } = fakeClient({
+        listActivitySummaries: vi
+          .fn()
+          .mockResolvedValueOnce({ items: [summary("a1", "2026-01-03T00:00:00Z")], nextCursor: "c1" })
+          .mockResolvedValueOnce({ items: [summary("b1", "2026-01-02T00:00:00Z")], nextCursor: null }),
+      });
+
+      const snapshot = await createBackendSyncController({ client, participantId: UID }).load();
+
+      expect(snapshot.serverRuns).toHaveLength(2);
+      expect(snapshot.truncated).toBe(false);
+    });
+
     it("is read-only: a brand-new participant creates nothing", async () => {
       const { client, mocks } = fakeClient({ listSubjects: vi.fn(async () => ({ items: [] })) });
 
@@ -197,10 +211,21 @@ describe("backend sync controller", () => {
         subjectId: null,
         consent: { status: "none" },
         serverRuns: [],
+        goNoGoRuns: [],
+        nBackRuns: [],
+        stopSignalRuns: [],
+        stroopRuns: [],
+        taskSwitchingRuns: [],
+        visualSearchRuns: [],
+        planningPuzzleRuns: [],
+        visualSequenceRuns: [],
+        timePerceptionRuns: [],
+        objectTrackingRuns: [],
         twin: null,
         twinHistory: [],
         reports: [],
         sessions: [],
+        truncated: false,
       });
       expect(mocks.createSubject).not.toHaveBeenCalled();
       expect(mocks.createConsent).not.toHaveBeenCalled();

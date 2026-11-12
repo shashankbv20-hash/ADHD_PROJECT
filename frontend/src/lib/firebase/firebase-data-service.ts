@@ -85,8 +85,8 @@ function readMetrics(data: Record<string, unknown>): CptMetrics | null {
 
   if (
     (accuracyPercent !== null && (accuracyPercent < 0 || accuracyPercent > 100)) ||
-    (meanHitReactionTimeMs !== null && (meanHitReactionTimeMs < 0 || meanHitReactionTimeMs > 1200)) ||
-    data.hitReactionTimeTotalMs > (data.validReactionTimeCount as number) * 1200
+    (meanHitReactionTimeMs !== null && (meanHitReactionTimeMs < 0 || meanHitReactionTimeMs > 2200)) ||
+    data.hitReactionTimeTotalMs > (data.validReactionTimeCount as number) * 2200
   ) {
     return null;
   }
@@ -411,6 +411,29 @@ export async function updateFirebaseCloudSyncPreference(
       throw new FirebaseOperationError(
         "profile-initialization",
         "The participant profile was not available after updating the sync preference.",
+      );
+    }
+
+    return readUserProfile(uid, snapshot.data());
+  } catch (error) {
+    throw normalizeFirebaseError(error);
+  }
+}
+
+export async function updateFirebaseDisplayName(
+  db: Firestore,
+  uid: string,
+  displayName: string,
+): Promise<FirebaseUserProfile> {
+  try {
+    const ref = profileRef(db, uid);
+    await updateDoc(ref, { displayName, updatedAt: serverTimestamp() });
+    const snapshot = await getDoc(ref);
+
+    if (!snapshot.exists()) {
+      throw new FirebaseOperationError(
+        "profile-initialization",
+        "The participant profile was not available after updating the name.",
       );
     }
 

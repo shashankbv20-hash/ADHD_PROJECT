@@ -54,13 +54,13 @@ service cloud.firestore {
         && data.falseAlarmCount + data.correctRejectionCount == data.nonTargetCount
         && data.responseCount == data.hitCount + data.falseAlarmCount
         && validOptionalMetric(data.accuracyPercent, 0, 100)
-        && validOptionalMetric(data.meanHitReactionTimeMs, 0, 1200)
+        && validOptionalMetric(data.meanHitReactionTimeMs, 0, 2200)
         && data.validReactionTimeCount is int
         && data.validReactionTimeCount >= 0
         && data.validReactionTimeCount <= data.hitCount
         && data.hitReactionTimeTotalMs is int
         && data.hitReactionTimeTotalMs >= 0
-        && data.hitReactionTimeTotalMs <= data.validReactionTimeCount * 1200;
+        && data.hitReactionTimeTotalMs <= data.validReactionTimeCount * 2200;
     }
 
     function validApplicationSession(data, sessionId) {
@@ -159,7 +159,7 @@ service cloud.firestore {
         && (data.baselineRunId == null || data.baselineRunId is string)
         && (data.latestRunId == null || data.latestRunId is string)
         && validOptionalMetric(data.accuracyDelta, -100, 100)
-        && validOptionalMetric(data.reactionTimeDelta, -1200, 1200)
+        && validOptionalMetric(data.reactionTimeDelta, -2200, 2200)
         && (data.observationStart == null || data.observationStart is timestamp)
         && (data.observationEnd == null || data.observationEnd is timestamp)
         && data.updatedAt is timestamp
@@ -186,13 +186,13 @@ service cloud.firestore {
         && data.falseAlarmCount + data.correctRejectionCount == data.nonTargetCount
         && data.responseCount == data.hitCount + data.falseAlarmCount
         && validOptionalMetric(data.accuracyPercent, 0, 100)
-        && validOptionalMetric(data.meanHitReactionTimeMs, 0, 1200)
+        && validOptionalMetric(data.meanHitReactionTimeMs, 0, 2200)
         && data.validReactionTimeCount is int
         && data.validReactionTimeCount >= 0
         && data.validReactionTimeCount <= data.hitCount
         && data.hitReactionTimeTotalMs is int
         && data.hitReactionTimeTotalMs >= 0
-        && data.hitReactionTimeTotalMs <= data.validReactionTimeCount * 1200;
+        && data.hitReactionTimeTotalMs <= data.validReactionTimeCount * 2200;
     }
 
     match /users/{uid} {

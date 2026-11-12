@@ -14,7 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ReportList, TwinSummary, display } from "@/features/backend/twin-summary";
+import { ReportList, TwinSummary } from "@/features/backend/twin-summary";
+import { display } from "@/features/backend/twin-summary-parts";
 import { useCaregiver } from "@/features/caregiver/caregiver-provider";
 import type { CaregiverSubjectData } from "@/lib/backend/caregiver";
 import { formatDateTime } from "@/lib/utils";
@@ -318,7 +319,7 @@ export function CaregiverSubjectView({ subjectId }: { subjectId: string }) {
               <CardTitle>Saved runs</CardTitle>
               <CardDescription>
                 {data.runs.length} scored run{data.runs.length === 1 ? "" : "s"} · {data.sessionCount} saved
-                session{data.sessionCount === 1 ? "" : "s"}. Only the summary of each run is shown.
+                session{data.sessionCount === 1 ? "" : "s"}{data.truncated ? " (most recent shown)" : ""}. Only the summary of each run is shown.
               </CardDescription>
             </CardHeader>
             <CardContent>

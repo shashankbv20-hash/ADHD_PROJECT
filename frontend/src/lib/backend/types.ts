@@ -86,6 +86,217 @@ export interface BackendCptEvent {
   outcome?: "hit" | "miss" | "false-alarm" | "correct-rejection" | null;
 }
 
+export interface BackendStopSignalEvent {
+  trialIndex: number;
+  trialId: string;
+  stimulus: "L" | "R";
+  isStop: boolean;
+  stopSignalDelayMs: number | null;
+  responded: boolean;
+  responseDirection: "L" | "R" | null;
+  reactionTimeMs: number | null;
+}
+
+export interface BackendStopSignalMetrics {
+  trialCount: number;
+  goTrialCount: number;
+  stopTrialCount: number;
+  goCorrectCount: number;
+  goWrongDirectionCount: number;
+  goOmissionCount: number;
+  goAccuracyPercent: number | null;
+  meanGoReactionTimeMs: number | null;
+  goReactionTimeStddevMs: number | null;
+  successfulStopCount: number;
+  failedStopCount: number;
+  stopSuccessRatePercent: number | null;
+  meanStopSignalDelayMs: number | null;
+  ssrtEstimateMs: number | null;
+  ssrtReliable: boolean;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
+export type StroopColor = "R" | "G" | "B" | "Y";
+
+export interface BackendStroopEvent {
+  trialIndex: number;
+  trialId: string;
+  word: StroopColor;
+  ink: StroopColor;
+  responded: boolean;
+  responseColor: StroopColor | null;
+  reactionTimeMs: number | null;
+}
+
+export interface BackendStroopMetrics {
+  trialCount: number;
+  congruentTrialCount: number;
+  incongruentTrialCount: number;
+  correctCount: number;
+  errorCount: number;
+  omissionCount: number;
+  accuracyPercent: number | null;
+  congruentAccuracyPercent: number | null;
+  incongruentAccuracyPercent: number | null;
+  meanCongruentReactionTimeMs: number | null;
+  meanIncongruentReactionTimeMs: number | null;
+  interferenceMs: number | null;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
+export type TaskSwitchingRule = "colour" | "shape";
+export type TaskSwitchingColour = "R" | "B";
+export type TaskSwitchingShape = "O" | "Q";
+
+export interface BackendTaskSwitchingEvent {
+  trialIndex: number;
+  trialId: string;
+  rule: TaskSwitchingRule;
+  colour: TaskSwitchingColour;
+  shape: TaskSwitchingShape;
+  responded: boolean;
+  responseSide: "L" | "R" | null;
+  reactionTimeMs: number | null;
+}
+
+export interface BackendTaskSwitchingMetrics {
+  trialCount: number;
+  switchTrialCount: number;
+  repeatTrialCount: number;
+  correctCount: number;
+  errorCount: number;
+  omissionCount: number;
+  accuracyPercent: number | null;
+  switchAccuracyPercent: number | null;
+  repeatAccuracyPercent: number | null;
+  meanSwitchReactionTimeMs: number | null;
+  meanRepeatReactionTimeMs: number | null;
+  switchCostMs: number | null;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
+export interface BackendVisualSearchEvent {
+  trialIndex: number;
+  trialId: string;
+  setSize: 4 | 8 | 12;
+  targetPresent: boolean;
+  responded: boolean;
+  response: "present" | "absent" | null;
+  reactionTimeMs: number | null;
+}
+
+export interface BackendVisualSearchMetrics {
+  trialCount: number;
+  targetPresentCount: number;
+  targetAbsentCount: number;
+  correctCount: number;
+  errorCount: number;
+  omissionCount: number;
+  accuracyPercent: number | null;
+  presentAccuracyPercent: number | null;
+  absentAccuracyPercent: number | null;
+  meanReactionTimeMs: number | null;
+  reactionTimeBySetSize: { setSize: number; meanReactionTimeMs: number | null }[];
+  searchSlopeMsPerItem: number | null;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
+export interface BackendPlanningPuzzleEvent {
+  trialIndex: number;
+  trialId: string;
+  discCount: 3 | 4;
+  /** Moves like "AB" = top disc from peg A to peg B. */
+  moves: string[];
+  illegalAttempts: number;
+  firstMoveLatencyMs: number | null;
+  totalTimeMs: number;
+}
+
+export interface BackendPlanningPuzzleMetrics {
+  puzzleCount: number;
+  solvedCount: number;
+  solvedPercent: number | null;
+  optimalCount: number;
+  totalMoves: number;
+  meanExtraMoves: number | null;
+  illegalAttempts: number;
+  meanPlanningTimeMs: number | null;
+  meanSolutionTimeMs: number | null;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
+export interface BackendVisualSequenceEvent {
+  trialIndex: number;
+  trialId: string;
+  sequenceLength: number;
+  /** Cells tapped, 0-8 (left to right, top to bottom). */
+  response: number[];
+  firstResponseLatencyMs: number | null;
+  totalResponseTimeMs: number;
+}
+
+export interface BackendVisualSequenceMetrics {
+  trialCount: number;
+  correctCount: number;
+  accuracyPercent: number | null;
+  longestCorrectSpan: number | null;
+  correctPositionPercent: number | null;
+  noResponseCount: number;
+  meanFirstResponseMs: number | null;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
+export interface BackendTimePerceptionEvent {
+  trialIndex: number;
+  trialId: string;
+  targetMs: number;
+  /** Null when the child gave no answer. */
+  reproducedMs: number | null;
+}
+
+export interface BackendTimePerceptionMetrics {
+  trialCount: number;
+  responseCount: number;
+  noResponseCount: number;
+  meanAbsoluteErrorMs: number | null;
+  meanSignedErrorMs: number | null;
+  meanRatio: number | null;
+  ratioVariability: number | null;
+  withinToleranceCount: number;
+  withinTolerancePercent: number;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
+export interface BackendObjectTrackingEvent {
+  trialIndex: number;
+  trialId: string;
+  objectCount: 8;
+  targetCount: 2 | 3 | 4;
+  /** Circle numbers picked, 0-7. */
+  selected: number[];
+  responseTimeMs: number | null;
+}
+
+export interface BackendObjectTrackingMetrics {
+  trialCount: number;
+  perfectCount: number;
+  perfectPercent: number | null;
+  targetsFoundPercent: number | null;
+  wrongPickCount: number;
+  highestPerfectLoad: number | null;
+  byLoad: { targetCount: number; trialCount: number; targetsFoundPercent: number | null }[];
+  meanResponseTimeMs: number | null;
+  dataProvenance: string;
+  calculationVersion: string;
+}
+
 export interface EventBatchResponse {
   acceptedCount: number;
   duplicateCount: number;
@@ -123,7 +334,16 @@ export interface BackendActivitySummary {
   sessionActivityId: string;
   subjectId: string;
   activityCode: string;
-  metrics: BackendCptMetrics;
+  metrics:
+    | BackendCptMetrics
+    | BackendStopSignalMetrics
+    | BackendStroopMetrics
+    | BackendTaskSwitchingMetrics
+    | BackendVisualSearchMetrics
+    | BackendPlanningPuzzleMetrics
+    | BackendVisualSequenceMetrics
+    | BackendTimePerceptionMetrics
+    | BackendObjectTrackingMetrics;
   dataProvenance: string;
   calculationVersion: string;
   createdAt: string;

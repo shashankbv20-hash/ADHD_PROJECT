@@ -44,7 +44,9 @@ Firestore. The API stores backend-authoritative subject/session/event/summary/
 consent/report/Twin data under subject-scoped documents, rather than copying it
 into the frontend's legacy user subcollections. When a frontend operation is
 cut over to the API, disable its direct Firestore write for that same operation.
-No frontend API cutover is implemented yet.
+The frontend can run in API-backed Firebase mode (see
+[API integration](docs/api_integration.md)); the direct Firestore write is disabled for each
+cut-over operation.
 
 Never put Admin credentials, service-account JSON, private keys, or other
 privileged secrets in frontend code or `NEXT_PUBLIC_*` variables. The frontend
@@ -68,12 +70,14 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 No PostgreSQL service or Alembic migration is required. Run synthetic tests
 with `python -m pytest -q`.
 
+New here? Read [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Status and limitations
 
 FastAPI persistence, access control, consent-aware CPT sessions/scoring,
 analytics, reports, and versioned Digital Twin history use a Firestore repository.
-Tests use an in-memory repository. No Firestore Emulator Suite or live Firebase
-Auth/Firestore read/write verification is claimed. EEG inference remains blocked
+Tests run on an in-memory repository and, in CI, against the Firebase Auth and Firestore
+emulators. No live Firebase project verification is claimed. EEG inference remains blocked
 by missing model/preprocessing artifacts; webcam extraction lacks an approved
 extractor/policy; AI Buddy lacks a configured approved LLM provider. Raw EEG and
 webcam video are not stored in Firestore.

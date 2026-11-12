@@ -3,7 +3,7 @@ import type { CptTrialDefinition } from "@/types";
 export const CPT_TARGET_STIMULUS = "X";
 
 export const CPT_STIMULUS_DURATION_MS = 650;
-export const CPT_RESPONSE_WINDOW_MS = 1200;
+export const CPT_RESPONSE_WINDOW_MS = 2200;
 
 export const CPT_PRACTICE_STIMULI = [
   "A",

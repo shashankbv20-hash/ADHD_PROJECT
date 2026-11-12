@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseServerReport, parseServerTwin, parseTwinHistory } from "@/lib/backend/twin";
+import { parseInsights, parseServerReport, parseServerTwin, parseTwinHistory } from "@/lib/backend/twin";
 import type {
   BackendDigitalTwin,
   BackendDigitalTwinHistoryItem,
@@ -155,5 +155,41 @@ describe("parseServerReport", () => {
   it("copes with empty content", () => {
     const view = parseServerReport(report({}));
     expect(view).toMatchObject({ summaryCount: null, metrics: null, limitations: [] });
+  });
+});
+
+describe("parseInsights (Twin v2)", () => {
+  it("returns null for older profiles without insights", () => {
+    expect(parseInsights({ summary_count: 2 })).toBeNull();
+    expect(parseServerTwin(twin({ summary_count: 2 })).insights).toBeNull();
+  });
+
+  it("reads trend, block profile, spread and within-session change defensively", () => {
+    const insights = parseInsights({
+      insights: {
+        confidence: "low",
+        run_count: 2,
+        trend: [
+          { run: 1, completed_at: "2026-01-01T00:00:00Z", accuracy_percent: 90, mean_hit_reaction_time_ms: 400, reaction_time_sd_ms: 55.5, reaction_time_cv: 0.139 },
+          { run: 2, accuracy_percent: "bad" },
+        ],
+        block_profile: [{ block: 1, runs: 2, accuracy_percent: 95, mean_hit_reaction_time_ms: 390 }],
+        reaction_time_spread: { runs_used: 1, mean_sd_ms: 55.5, mean_cv: 0.139 },
+        within_session_change: { runs_used: 2, accuracy_change_points: -12.5, reaction_time_change_ms: 30 },
+      },
+    });
+
+    expect(insights?.confidence).toBe("low");
+    expect(insights?.trend).toHaveLength(2);
+    expect(insights?.trend[0]).toMatchObject({ run: 1, reactionTimeSdMs: 55.5 });
+    expect(insights?.trend[1].accuracyPercent).toBeNull();
+    expect(insights?.blockProfile[0]).toMatchObject({ block: 1, accuracyPercent: 95 });
+    expect(insights?.spread).toEqual({ runsUsed: 1, meanSdMs: 55.5, meanCv: 0.139 });
+    expect(insights?.withinSession).toEqual({ runsUsed: 2, accuracyChangePoints: -12.5, reactionTimeChangeMs: 30 });
+  });
+
+  it("falls back to insufficient confidence for unknown values and null parts", () => {
+    const insights = parseInsights({ insights: { confidence: "certain", reaction_time_spread: null } });
+    expect(insights).toMatchObject({ confidence: "insufficient", spread: null, withinSession: null, trend: [] });
   });
 });

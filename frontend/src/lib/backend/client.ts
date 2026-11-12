@@ -8,6 +8,14 @@ import type {
   BackendCapabilities,
   BackendConsent,
   BackendCptEvent,
+  BackendStopSignalEvent,
+  BackendStroopEvent,
+  BackendTaskSwitchingEvent,
+  BackendVisualSearchEvent,
+  BackendPlanningPuzzleEvent,
+  BackendVisualSequenceEvent,
+  BackendTimePerceptionEvent,
+  BackendObjectTrackingEvent,
   BackendDigitalTwin,
   BackendDigitalTwinHistoryItem,
   BackendProgress,
@@ -90,6 +98,31 @@ export function createBackendClient({
     }
   }
 
+  const authorizedFetch = withBearerToken(fetcher, getIdToken);
+
+  /** Downloads a binary file (the response is not JSON, so the JSON client cannot be used). */
+  async function download(path: string): Promise<Blob> {
+    const url = `${baseUrl.replace(/\/$/, "")}/${API_PREFIX}/${path}`;
+    let response: Response;
+    try {
+      response = await authorizedFetch(url);
+    } catch (error) {
+      throw new ApiClientError("The file could not be downloaded.", {
+        kind: "network",
+        code: "download-failed",
+        cause: error,
+      });
+    }
+    if (!response.ok) {
+      throw new ApiClientError("The file could not be downloaded.", {
+        kind: "http",
+        code: "download-failed",
+        status: response.status,
+      });
+    }
+    return response.blob();
+  }
+
   const post = <Payload>(path: string, body?: unknown) =>
     request<Payload>(path, { method: "POST", body: body ?? undefined });
 
@@ -119,7 +152,20 @@ export function createBackendClient({
     startSession: (sessionId: string) => post<BackendSession>(`sessions/${sessionId}/start`),
     startActivity: (sessionId: string, assignmentId: string) =>
       post<BackendSession>(`sessions/${sessionId}/activities/${assignmentId}/start`),
-    ingestEvents: (sessionId: string, assignmentId: string, events: BackendCptEvent[]) =>
+    ingestEvents: (
+      sessionId: string,
+      assignmentId: string,
+      events:
+        | BackendCptEvent[]
+        | BackendStopSignalEvent[]
+        | BackendStroopEvent[]
+        | BackendTaskSwitchingEvent[]
+        | BackendVisualSearchEvent[]
+        | BackendPlanningPuzzleEvent[]
+        | BackendVisualSequenceEvent[]
+        | BackendTimePerceptionEvent[]
+        | BackendObjectTrackingEvent[],
+    ) =>
       post<EventBatchResponse>(`sessions/${sessionId}/activities/${assignmentId}/events:batch`, {
         events,
       }),
@@ -171,6 +217,8 @@ export function createBackendClient({
 
     listReports: (subjectId: string) =>
       request<{ items: BackendReport[] }>(`subjects/${subjectId}/reports`),
+    downloadReportPdf: (subjectId: string, reportId: string) =>
+      download(`subjects/${subjectId}/reports/${encodeURIComponent(reportId)}/pdf`),
     createReport: (subjectId: string, body: ReportCreateRequest) =>
       post<BackendReport>(`subjects/${subjectId}/reports`, body),
   };

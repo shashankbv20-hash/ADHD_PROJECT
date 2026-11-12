@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     rate_limit_ip_per_minute: int = 600  # per client address
     # Trust X-Forwarded-For for the client address. Enable ONLY behind a proxy that overwrites it.
     trust_proxy_headers: bool = False
+    # Enables GET /metrics (Prometheus text) for callers sending this bearer token. Unset = disabled.
+    metrics_token: str | None = None
 
     @property
     def cors_origin_list(self) -> list[str]:

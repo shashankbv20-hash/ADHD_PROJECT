@@ -22,7 +22,29 @@ import type { AccessLogEntry } from "@/lib/backend/audit";
 import type { CaregiverShare } from "@/lib/backend/caregiver";
 import type { ServerReportView, ServerTwinHistoryEntry, ServerTwinView } from "@/lib/backend/twin";
 import type { BackendSession, DataErasureResult } from "@/lib/backend/types";
-import type { CptRunSummary } from "@/types";
+import type {
+  GoNoGoRunView,
+  NBackRunView,
+  StopSignalRunView,
+  StroopRunView,
+  TaskSwitchingRunView,
+  VisualSearchRunView,
+  PlanningPuzzleRunView,
+  VisualSequenceRunView,
+  TimePerceptionRunView,
+  ObjectTrackingRunView,
+} from "@/lib/backend/summary-mapping";
+import type {
+  BackendStopSignalEvent,
+  BackendStroopEvent,
+  BackendTaskSwitchingEvent,
+  BackendVisualSearchEvent,
+  BackendPlanningPuzzleEvent,
+  BackendVisualSequenceEvent,
+  BackendTimePerceptionEvent,
+  BackendObjectTrackingEvent,
+} from "@/lib/backend/types";
+import type { CptRunSummary, CptTrialEvent } from "@/types";
 
 export type BackendSyncStatus = "loading" | "ready" | "error";
 
@@ -33,13 +55,37 @@ interface BackendSyncContextValue {
   consent: BackendSyncSnapshot["consent"];
   serverRuns: CptRunSummary[];
   /** Server-calculated Digital Twin, version history, reports and sessions. */
+  /** Saved Go/No-Go runs, newest first. */
+  goNoGoRuns: GoNoGoRunView[];
+  /** Saved N-back runs, newest first. */
+  nBackRuns: NBackRunView[];
+  /** Saved Stop-Signal runs, newest first. */
+  stopSignalRuns: StopSignalRunView[];
+  /** Saved Stroop runs, newest first. */
+  stroopRuns: StroopRunView[];
+  /** Saved Task Switching runs, newest first. */
+  taskSwitchingRuns: TaskSwitchingRunView[];
+  /** Saved Visual Search runs, newest first. */
+  visualSearchRuns: VisualSearchRunView[];
+  /** Saved Planning Puzzle runs, newest first. */
+  planningPuzzleRuns: PlanningPuzzleRunView[];
+  /** Saved Visual Sequence runs, newest first. */
+  visualSequenceRuns: VisualSequenceRunView[];
+  /** Saved Time Perception runs, newest first. */
+  timePerceptionRuns: TimePerceptionRunView[];
+  /** Saved Multiple Object Tracking runs, newest first. */
+  objectTrackingRuns: ObjectTrackingRunView[];
   twin: ServerTwinView | null;
   twinHistory: ServerTwinHistoryEntry[];
   reports: ServerReportView[];
   sessions: BackendSession[];
+  /** True when older runs or sessions exist beyond the page cap. */
+  truncated: boolean;
   reportBusy: boolean;
   reportError: string | null;
   createReport: () => Promise<void>;
+  /** Downloads a saved report as a PDF. Throws an Error with user-safe wording on failure. */
+  downloadReportPdf: (reportId: string) => Promise<{ filename: string; blob: Blob }>;
   /** Null until the participant first grants consent (nothing exists to export or erase). */
   subjectId: string | null;
   /** Data rights. Each throws an Error with user-safe wording on failure. */
@@ -58,6 +104,47 @@ interface BackendSyncContextValue {
   grantConsent: () => Promise<void>;
   withdrawConsent: () => Promise<void>;
   persistRun: (run: CptRunSummary) => Promise<PersistOutcome>;
+  /** Saves a scored Go/No-Go run through the API. Throws an Error with user-safe wording. */
+  persistGoNoGoRun: (runId: string, events: readonly CptTrialEvent[]) => Promise<PersistOutcome>;
+  /** Saves a scored N-back run through the API. Throws an Error with user-safe wording. */
+  persistNBackRun: (runId: string, events: readonly CptTrialEvent[]) => Promise<PersistOutcome>;
+  /** Saves a scored Time Perception run through the API. Throws an Error with user-safe wording. */
+  persistTimePerceptionRun: (
+    runId: string,
+    events: readonly BackendTimePerceptionEvent[],
+  ) => Promise<PersistOutcome>;
+  /** Saves a scored Multiple Object Tracking run through the API. Throws an Error with user-safe wording. */
+  persistObjectTrackingRun: (
+    runId: string,
+    events: readonly BackendObjectTrackingEvent[],
+  ) => Promise<PersistOutcome>;
+  /** Saves a scored Visual Sequence run through the API. Throws an Error with user-safe wording. */
+  persistVisualSequenceRun: (
+    runId: string,
+    events: readonly BackendVisualSequenceEvent[],
+  ) => Promise<PersistOutcome>;
+  /** Saves a scored Planning Puzzle run through the API. Throws an Error with user-safe wording. */
+  persistPlanningPuzzleRun: (
+    runId: string,
+    events: readonly BackendPlanningPuzzleEvent[],
+  ) => Promise<PersistOutcome>;
+  /** Saves a scored Visual Search run through the API. Throws an Error with user-safe wording. */
+  persistVisualSearchRun: (
+    runId: string,
+    events: readonly BackendVisualSearchEvent[],
+  ) => Promise<PersistOutcome>;
+  /** Saves a scored Task Switching run through the API. Throws an Error with user-safe wording. */
+  persistTaskSwitchingRun: (
+    runId: string,
+    events: readonly BackendTaskSwitchingEvent[],
+  ) => Promise<PersistOutcome>;
+  /** Saves a scored Stroop run through the API. Throws an Error with user-safe wording. */
+  persistStroopRun: (runId: string, events: readonly BackendStroopEvent[]) => Promise<PersistOutcome>;
+  /** Saves a scored Stop-Signal run through the API. Throws an Error with user-safe wording. */
+  persistStopSignalRun: (
+    runId: string,
+    events: readonly BackendStopSignalEvent[],
+  ) => Promise<PersistOutcome>;
   refresh: () => Promise<void>;
 }
 
@@ -182,6 +269,21 @@ export function BackendSyncProvider({
 
   const subjectId = snapshot?.subjectId ?? null;
 
+  const downloadReportPdf = useCallback(
+    async (reportId: string) => {
+      if (!subjectId) {
+        throw new Error("There is no saved report to download yet.");
+      }
+
+      try {
+        return await controller.downloadReportPdf(subjectId, reportId);
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, subjectId],
+  );
+
   const exportData = useCallback(async () => {
     if (!subjectId) {
       throw new Error("There is no saved data to export yet.");
@@ -283,19 +385,161 @@ export function BackendSyncProvider({
     [controller, refresh],
   );
 
+  const persistGoNoGoRun = useCallback(
+    async (runId: string, events: readonly CptTrialEvent[]) => {
+      try {
+        const outcome = await controller.persistGoNoGoRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistNBackRun = useCallback(
+    async (runId: string, events: readonly CptTrialEvent[]) => {
+      try {
+        const outcome = await controller.persistNBackRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistTimePerceptionRun = useCallback(
+    async (runId: string, events: readonly BackendTimePerceptionEvent[]) => {
+      try {
+        const outcome = await controller.persistTimePerceptionRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistObjectTrackingRun = useCallback(
+    async (runId: string, events: readonly BackendObjectTrackingEvent[]) => {
+      try {
+        const outcome = await controller.persistObjectTrackingRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistVisualSequenceRun = useCallback(
+    async (runId: string, events: readonly BackendVisualSequenceEvent[]) => {
+      try {
+        const outcome = await controller.persistVisualSequenceRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistPlanningPuzzleRun = useCallback(
+    async (runId: string, events: readonly BackendPlanningPuzzleEvent[]) => {
+      try {
+        const outcome = await controller.persistPlanningPuzzleRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistVisualSearchRun = useCallback(
+    async (runId: string, events: readonly BackendVisualSearchEvent[]) => {
+      try {
+        const outcome = await controller.persistVisualSearchRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistTaskSwitchingRun = useCallback(
+    async (runId: string, events: readonly BackendTaskSwitchingEvent[]) => {
+      try {
+        const outcome = await controller.persistTaskSwitchingRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistStroopRun = useCallback(
+    async (runId: string, events: readonly BackendStroopEvent[]) => {
+      try {
+        const outcome = await controller.persistStroopRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
+  const persistStopSignalRun = useCallback(
+    async (runId: string, events: readonly BackendStopSignalEvent[]) => {
+      try {
+        const outcome = await controller.persistStopSignalRun(runId, events);
+        void refresh();
+        return outcome;
+      } catch (error) {
+        throw new Error(describeSyncError(error), { cause: error });
+      }
+    },
+    [controller, refresh],
+  );
+
   const value = useMemo<BackendSyncContextValue>(
     () => ({
       status,
       loadError,
       consent: snapshot?.consent ?? NO_CONSENT,
       serverRuns: snapshot?.serverRuns ?? [],
+      goNoGoRuns: snapshot?.goNoGoRuns ?? [],
+      nBackRuns: snapshot?.nBackRuns ?? [],
+      stopSignalRuns: snapshot?.stopSignalRuns ?? [],
+      stroopRuns: snapshot?.stroopRuns ?? [],
+      taskSwitchingRuns: snapshot?.taskSwitchingRuns ?? [],
+      visualSearchRuns: snapshot?.visualSearchRuns ?? [],
+      planningPuzzleRuns: snapshot?.planningPuzzleRuns ?? [],
+      visualSequenceRuns: snapshot?.visualSequenceRuns ?? [],
+      timePerceptionRuns: snapshot?.timePerceptionRuns ?? [],
+      objectTrackingRuns: snapshot?.objectTrackingRuns ?? [],
       twin: snapshot?.twin ?? null,
       twinHistory: snapshot?.twinHistory ?? [],
       reports: snapshot?.reports ?? [],
       sessions: snapshot?.sessions ?? [],
+      truncated: snapshot?.truncated ?? false,
       reportBusy,
       reportError,
       createReport,
+      downloadReportPdf,
       subjectId,
       exportData,
       loadAccessLog,
@@ -308,6 +552,16 @@ export function BackendSyncProvider({
       grantConsent,
       withdrawConsent,
       persistRun,
+      persistGoNoGoRun,
+      persistNBackRun,
+      persistTimePerceptionRun,
+      persistObjectTrackingRun,
+      persistVisualSequenceRun,
+      persistPlanningPuzzleRun,
+      persistVisualSearchRun,
+      persistTaskSwitchingRun,
+      persistStroopRun,
+      persistStopSignalRun,
       refresh,
     }),
     [
@@ -317,6 +571,7 @@ export function BackendSyncProvider({
       reportBusy,
       reportError,
       createReport,
+      downloadReportPdf,
       subjectId,
       exportData,
       loadAccessLog,
@@ -329,6 +584,16 @@ export function BackendSyncProvider({
       grantConsent,
       withdrawConsent,
       persistRun,
+      persistGoNoGoRun,
+      persistNBackRun,
+      persistTimePerceptionRun,
+      persistObjectTrackingRun,
+      persistVisualSequenceRun,
+      persistPlanningPuzzleRun,
+      persistVisualSearchRun,
+      persistTaskSwitchingRun,
+      persistStroopRun,
+      persistStopSignalRun,
       refresh,
     ],
   );

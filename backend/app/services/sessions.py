@@ -8,19 +8,23 @@ from uuid import UUID, uuid4
 
 from app.core.errors import ApiError
 from app.repositories.firestore import Repository, Transaction, path
-from app.schemas import SessionCreate
+from app.schemas import CptEventInput, SessionCreate
 from app.services.authorization import get_subject_for_user, require_active_consent, require_participant_owner
 from app.services.catalog import CATALOG
+from app.services.choice_tasks import CHOICE_TASKS
 from app.services.cpt_scoring import (
-    CPT_CALCULATION_VERSION,
-    CPT_DATA_PROVENANCE,
+    ACTIVITY_PROVENANCE,
     CPT_PRACTICE_STIMULI,
     CPT_RESPONSE_WINDOW_MS,
     CPT_SCORED_STIMULI,
-    calculate_cpt_metrics,
+    GO_NO_GO_CODE,
+    N_BACK_CODE,
+    calculate_activity_metrics,
     expected_stimuli,
     validate_cpt_event,
 )
+
+SUPPORTED_ACTIVITIES = frozenset({"cpt", GO_NO_GO_CODE, N_BACK_CODE, *CHOICE_TASKS})
 
 
 def _now() -> datetime:
@@ -176,17 +180,21 @@ def create_session(repo: Repository, user, request: SessionCreate) -> dict[str, 
             raise ApiError(
                 409, "activity_unavailable", f"Activity '{code}' is planned and cannot be started."
             )
-        if code != "cpt":
+        if code not in SUPPORTED_ACTIVITIES:
             raise ApiError(
                 409,
                 "activity_not_implemented",
                 f"Activity '{code}' has no supported backend event contract yet.",
             )
-    configs = repo.list(
-        "activities/cpt/configurations",
-        filters=(("is_current", "==", True),),
-        order_by=("created_at", "desc"),
-        limit=1,
+    configs = (
+        repo.list(
+            "activities/cpt/configurations",
+            filters=(("is_current", "==", True),),
+            order_by=("created_at", "desc"),
+            limit=1,
+        )
+        if "cpt" in codes
+        else []
     )
     config = configs[0] if configs else None
     if config is None:
@@ -197,7 +205,7 @@ def create_session(repo: Repository, user, request: SessionCreate) -> dict[str, 
             "target_stimulus": "X",
             "response_window_ms": CPT_RESPONSE_WINDOW_MS,
             "trial_index_base": 0,
-            "configuration_version": "frontend-cpt-config-v1",
+            "configuration_version": "frontend-cpt-config-v2",
         }
     else:
         snapshot = dict(config.get("configuration", {}))
@@ -205,7 +213,7 @@ def create_session(repo: Repository, user, request: SessionCreate) -> dict[str, 
             snapshot.get("practice_stimuli") != list(expected_stimuli("practice"))
             or snapshot.get("scored_stimuli") != list(expected_stimuli("scored"))
             or snapshot.get("target_stimulus") != "X"
-            or snapshot.get("response_window_ms") != 1200
+            or snapshot.get("response_window_ms") != CPT_RESPONSE_WINDOW_MS
             or snapshot.get("trial_index_base") != 0
         ):
             raise ApiError(
@@ -230,11 +238,26 @@ def create_session(repo: Repository, user, request: SessionCreate) -> dict[str, 
     writes = [(sess_path, session)]
     for pos, item in enumerate(request.activities, 1):
         aid = str(uuid4())
-        snap = {
-            **snapshot,
-            "stimuli": list(expected_stimuli(item.mode)),
-            "configuration_source": "frontend-cpt-config-v1",
-        }
+        if item.activity_code in CHOICE_TASKS:
+            snap = CHOICE_TASKS[item.activity_code].snapshot(item.mode)
+        elif item.activity_code in (GO_NO_GO_CODE, N_BACK_CODE):
+            code = item.activity_code
+            snap = {
+                "practice_stimuli": list(expected_stimuli("practice", code)),
+                "scored_stimuli": list(expected_stimuli("scored", code)),
+                "response_window_ms": CPT_RESPONSE_WINDOW_MS,
+                "trial_index_base": 0,
+                "configuration_version": f"frontend-{code}-config-v1",
+                "stimuli": list(expected_stimuli(item.mode, code)),
+                "configuration_source": f"frontend-{code}-config-v1",
+                **({"target_stimulus": "G"} if code == GO_NO_GO_CODE else {"level_length": 16}),
+            }
+        else:
+            snap = {
+                **snapshot,
+                "stimuli": list(expected_stimuli(item.mode)),
+                "configuration_source": "frontend-cpt-config-v2",
+            }
         writes.append(
             (
                 path("subjects", sid, "sessions", session_id, "activities", aid),
@@ -423,9 +446,9 @@ def add_cpt_events(repo, user, session_id, assignment_id, request_events):
     if s.status != "active":
         raise ApiError(409, "session_not_active", "The session must be active to accept activity events.")
     _, a = _assignment(repo, sid, session_id, assignment_id)
-    if a.activity_code != "cpt":
+    if a.activity_code not in SUPPORTED_ACTIVITIES:
         raise ApiError(
-            409, "activity_not_implemented", "Event ingestion is currently implemented only for CPT."
+            409, "activity_not_implemented", "Event ingestion is not implemented for this activity."
         )
     if a.status != "active":
         raise ApiError(409, "activity_not_active", "Start the activity before sending events.")
@@ -434,7 +457,13 @@ def add_cpt_events(repo, user, session_id, assignment_id, request_events):
         raise ApiError(
             422, "event_order_invalid", "Events in a batch must have unique ascending trial indices."
         )
-    normalized = [validate_cpt_event(e, a.mode) for e in request_events]
+    task = CHOICE_TASKS.get(a.activity_code)
+    if task is not None:
+        normalized = [task.validate_event(e, a.mode) for e in request_events]
+    else:
+        if any(not isinstance(e, CptEventInput) for e in request_events):
+            raise ApiError(422, "invalid_cpt_trial", "The trial does not match this activity.")
+        normalized = [validate_cpt_event(e, a.mode, a.activity_code) for e in request_events]
 
     def f(tx):
         _require_consent_tx(tx, sid)
@@ -447,9 +476,9 @@ def add_cpt_events(repo, user, session_id, assignment_id, request_events):
         if (
             current_assignment is None
             or current_assignment.status != "active"
-            or current_assignment.activity_code != "cpt"
+            or current_assignment.activity_code != a.activity_code
         ):
-            raise ApiError(409, "activity_not_active", "Start the CPT activity before sending events.")
+            raise ApiError(409, "activity_not_active", "Start the activity before sending events.")
         accepted = duplicates = 0
         base = path("subjects", sid, "sessions", str(session_id), "activities", str(assignment_id), "events")
         existing_by_index = {
@@ -468,7 +497,8 @@ def add_cpt_events(repo, user, session_id, assignment_id, request_events):
                     )
                 duplicates += 1
                 continue
-            tx.set(ep, {**comp, "event_type": "cpt_trial_response", "occurred_at": n["occurred_at"]})
+            event_type = "cpt_trial_response" if a.activity_code == "cpt" else "trial_response"
+            tx.set(ep, {**comp, "event_type": event_type, "occurred_at": n["occurred_at"]})
             accepted += 1
         _audit(
             tx,
@@ -525,18 +555,29 @@ def _finish_activity(repo, user, session_id, assignment_id, skip=False):
                 return
             if aa.status != "active":
                 raise ApiError(409, "activity_not_active", "Start the activity before completing it.")
-            if aa.activity_code != "cpt":
+            if aa.activity_code not in SUPPORTED_ACTIVITIES:
                 raise ApiError(
                     409, "activity_not_implemented", "This activity has no completion/scoring contract yet."
                 )
-            if [e.trial_index for e in events] != list(range(len(expected_stimuli(aa.mode)))):
+            choice_task = CHOICE_TASKS.get(aa.activity_code)
+            trial_total = (
+                choice_task.trial_count(aa.mode)
+                if choice_task
+                else len(expected_stimuli(aa.mode, aa.activity_code))
+            )
+            if [e.trial_index for e in events] != list(range(trial_total)):
                 raise ApiError(
                     409,
                     "activity_events_incomplete",
-                    "The CPT must contain every configured trial before completion.",
+                    "The activity must contain every configured trial before completion.",
                 )
             if aa.mode == "scored":
-                metrics = calculate_cpt_metrics([dict(e) for e in events])
+                if choice_task:
+                    metrics = choice_task.metrics([dict(e) for e in events])
+                    provenance, version = choice_task.data_provenance, choice_task.calculation_version
+                else:
+                    metrics = calculate_activity_metrics([dict(e) for e in events], aa.activity_code)
+                    provenance, version = ACTIVITY_PROVENANCE[aa.activity_code]
                 summary_id = str(assignment_id)
                 tx.set(
                     path("subjects", sid, "activitySummaries", summary_id),
@@ -544,10 +585,10 @@ def _finish_activity(repo, user, session_id, assignment_id, skip=False):
                         "session_activity_id": str(assignment_id),
                         "session_id": str(session_id),
                         "subject_id": sid,
-                        "activity_code": "cpt",
+                        "activity_code": aa.activity_code,
                         "metrics": metrics,
-                        "data_provenance": CPT_DATA_PROVENANCE,
-                        "calculation_version": CPT_CALCULATION_VERSION,
+                        "data_provenance": provenance,
+                        "calculation_version": version,
                         "created_at": now,
                     },
                 )
@@ -577,7 +618,13 @@ def _finish_activity(repo, user, session_id, assignment_id, skip=False):
 
     repo.run_transaction(f)
     latest = repo.get(sp)
-    if latest and latest.status == "completed" and not skip and a.mode == "scored":
+    if (
+        latest
+        and latest.status == "completed"
+        and not skip
+        and a.mode == "scored"
+        and a.activity_code == "cpt"
+    ):
         from app.services.digital_twin import rebuild_digital_twin
 
         rebuild_digital_twin(repo, UUID(sid), user.id)

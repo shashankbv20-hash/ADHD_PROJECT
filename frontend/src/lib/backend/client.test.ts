@@ -161,4 +161,29 @@ describe("createBackendClient", () => {
       `${BASE}/api/v1/subjects/subj/consents/consent-1/withdraw`,
     );
   });
+
+  describe("downloadReportPdf", () => {
+    it("fetches the binary with a bearer token and returns the blob", async () => {
+      const fetcher = vi.fn(async () => new Response("%PDF-1.4", { status: 200 }));
+      const { client } = setup(fetcher as unknown as typeof fetch);
+
+      const blob = await client.downloadReportPdf("subj", "rep 1");
+
+      expect(await blob.text()).toBe("%PDF-1.4");
+      expect(lastRequest(fetcher, 0).url).toBe(`${BASE}/api/v1/subjects/subj/reports/rep%201/pdf`);
+      expect(new Headers(lastRequest(fetcher, 0).init.headers).get("Authorization")).toBe("Bearer token-1");
+    });
+
+    it("turns HTTP and network failures into ApiClientError", async () => {
+      const failing = vi.fn(async () => new Response("no", { status: 403 }));
+      await expect(setup(failing as unknown as typeof fetch).client.downloadReportPdf("s", "r")).rejects.toMatchObject({
+        name: "ApiClientError",
+        status: 403,
+      });
+      const offline = vi.fn(async () => Promise.reject(new TypeError("offline")));
+      await expect(setup(offline as unknown as typeof fetch).client.downloadReportPdf("s", "r")).rejects.toMatchObject({
+        kind: "network",
+      });
+    });
+  });
 });

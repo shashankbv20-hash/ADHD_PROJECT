@@ -6,6 +6,13 @@ import {
   Gamepad2,
   Grid3x3,
   Hand,
+  OctagonX,
+  Palette,
+  Orbit,
+  Puzzle,
+  Search,
+  Shuffle,
+  Timer,
   Layers,
   type LucideIcon,
 } from "lucide-react";
@@ -27,9 +34,16 @@ import type {
 const activityIcons: Record<CognitiveActivityId, LucideIcon> = {
   cpt: Crosshair,
   "go-no-go": Hand,
+  "stop-signal": OctagonX,
+  stroop: Palette,
+  "task-switching": Shuffle,
+  "visual-search": Search,
+  "planning-puzzle": Puzzle,
   "selective-attention": Eye,
   "n-back": Layers,
   "visual-sequence": Grid3x3,
+  "time-perception": Timer,
+  "multiple-object-tracking": Orbit,
   "focus-arena": Gamepad2,
 };
 

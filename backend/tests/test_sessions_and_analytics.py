@@ -75,7 +75,7 @@ def test_cpt_session_is_idempotent_server_scored_and_updates_twin(test_app, part
     assignment = app.state.repository.get(
         path("subjects", subject["id"], "sessions", session["id"], "activities", assignment_id)
     )
-    assert assignment["configuration_snapshot"]["configuration_version"] == "frontend-cpt-config-v1"
+    assert assignment["configuration_snapshot"]["configuration_version"] == "frontend-cpt-config-v2"
     assert len(assignment["configuration_snapshot"]["stimuli"]) == 24
     payload = {"events": _events(CPT_SCORED_STIMULI, "scored")}
     event_url = f"/api/v1/sessions/{session['id']}/activities/{assignment_id}/events:batch"
@@ -246,7 +246,7 @@ def test_planned_activity_cannot_be_started_as_if_implemented(test_app, particip
         json={
             "subjectId": subject["id"],
             "idempotencyKey": "planned-activity-0001",
-            "activities": [{"activityCode": "n-back", "mode": "scored"}],
+            "activities": [{"activityCode": "selective-attention", "mode": "scored"}],
         },
     )
     assert response.status_code == 409

@@ -241,9 +241,16 @@ export interface DemoUploadSession {
 export type CognitiveActivityId =
   | "cpt"
   | "go-no-go"
+  | "stop-signal"
+  | "stroop"
+  | "task-switching"
+  | "visual-search"
+  | "planning-puzzle"
   | "selective-attention"
   | "n-back"
   | "visual-sequence"
+  | "time-perception"
+  | "multiple-object-tracking"
   | "focus-arena";
 
 export type CognitiveActivityAvailability = "available" | "planned";

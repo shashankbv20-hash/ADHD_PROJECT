@@ -2,11 +2,19 @@ import type { BackendClient } from "@/lib/backend/client";
 import type {
   BackendActivitySummary,
   BackendCptEvent,
+  BackendStopSignalEvent,
+  BackendStroopEvent,
+  BackendTaskSwitchingEvent,
+  BackendVisualSearchEvent,
+  BackendPlanningPuzzleEvent,
+  BackendVisualSequenceEvent,
+  BackendTimePerceptionEvent,
+  BackendObjectTrackingEvent,
   BackendSession,
   BackendSubject,
 } from "@/lib/backend/types";
 import { ApiClientError } from "@/lib/api-client";
-import type { CptRunSummary } from "@/types";
+import type { CptRunSummary, CptTrialEvent } from "@/types";
 
 export type CptSyncResult =
   /** The server validated, scored and stored the run. `summary` is server-calculated. */
@@ -22,8 +30,8 @@ export function cptSessionIdempotencyKey(runId: string): string {
   return `cpt-run-${runId}`;
 }
 
-export function toBackendEvents(run: CptRunSummary): BackendCptEvent[] {
-  return run.events.map((event) => ({
+export function eventsToBackend(events: readonly CptTrialEvent[]): BackendCptEvent[] {
+  return events.map((event) => ({
     trialIndex: event.trialIndex,
     trialId: event.trialId,
     stimulus: event.stimulus,
@@ -32,6 +40,10 @@ export function toBackendEvents(run: CptRunSummary): BackendCptEvent[] {
     reactionTimeMs: event.reactionTimeMs,
     outcome: event.outcome,
   }));
+}
+
+export function toBackendEvents(run: CptRunSummary): BackendCptEvent[] {
+  return eventsToBackend(run.events);
 }
 
 /** Returns the participant's own active subject, or null. Never creates one. */
@@ -82,6 +94,38 @@ export async function syncScoredCptRun(
     throw new Error("Only scored CPT runs are persisted; practice runs are never uploaded.");
   }
 
+  return syncScoredActivity(client, {
+    activityCode: "cpt",
+    idempotencyKey: cptSessionIdempotencyKey(run.id),
+    events: toBackendEvents(run),
+  });
+}
+
+/**
+ * The same flow for any activity the server can score from trial events (CPT, Go/No-Go).
+ * Client-side totals are never sent; consent and the subject are never created here.
+ */
+export async function syncScoredActivity(
+  client: BackendClient,
+  {
+    activityCode,
+    idempotencyKey,
+    events,
+  }: {
+    activityCode: string;
+    idempotencyKey: string;
+    events:
+      | BackendCptEvent[]
+      | BackendStopSignalEvent[]
+      | BackendStroopEvent[]
+      | BackendTaskSwitchingEvent[]
+      | BackendVisualSearchEvent[]
+      | BackendPlanningPuzzleEvent[]
+      | BackendVisualSequenceEvent[]
+      | BackendTimePerceptionEvent[]
+      | BackendObjectTrackingEvent[];
+  },
+): Promise<CptSyncResult> {
   const subject = await findOwnSubject(client);
 
   if (!subject || !(await hasActiveResearchConsent(client, subject.id))) {
@@ -92,8 +136,8 @@ export async function syncScoredCptRun(
   try {
     session = await client.createSession({
       subjectId: subject.id,
-      activities: [{ activityCode: "cpt", mode: "scored" }],
-      idempotencyKey: cptSessionIdempotencyKey(run.id),
+      activities: [{ activityCode, mode: "scored" }],
+      idempotencyKey,
     });
   } catch (error) {
     // Consent could be withdrawn between the check above and this call.
@@ -103,9 +147,9 @@ export async function syncScoredCptRun(
     throw error;
   }
 
-  const assignment = session.activities.find((activity) => activity.activityCode === "cpt");
+  const assignment = session.activities.find((activity) => activity.activityCode === activityCode);
   if (!assignment) {
-    throw new Error("The server session did not include a CPT activity.");
+    throw new Error("The server session did not include the requested activity.");
   }
 
   if (session.status === "created") {
@@ -119,7 +163,7 @@ export async function syncScoredCptRun(
   }
 
   if (current()?.status !== "completed") {
-    await client.ingestEvents(session.id, assignment.id, toBackendEvents(run));
+    await client.ingestEvents(session.id, assignment.id, events);
     session = await client.completeActivity(session.id, assignment.id);
   }
 

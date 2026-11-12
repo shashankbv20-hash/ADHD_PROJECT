@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from time import perf_counter
 from uuid import uuid4
@@ -8,7 +9,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.health import router as health_router
@@ -19,6 +20,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import ApiError
 from app.core.hardening import HardeningMiddleware
 from app.core.logging_config import configure_logging
+from app.core.metrics import Metrics
 from app.repositories.firestore import FirestoreRepository, Repository
 from app.services.catalog import seed_catalog
 
@@ -57,6 +59,7 @@ def create_app(
     app.state.settings = settings
     app.state.repository = store
     app.state.catalog_initialized = False
+    app.state.metrics = Metrics()
     app.state.token_verifier = token_verifier or verify_firebase_id_token
 
     app.add_middleware(
@@ -76,6 +79,12 @@ def create_app(
         try:
             response = await call_next(request)
         except Exception as exc:
+            app.state.metrics.observe(
+                request.method,
+                getattr(request.scope.get("route"), "path", "unmatched"),
+                500,
+                (perf_counter() - started) * 1000,
+            )
             logger.error(
                 "request_failed request_id=%s method=%s route=%s error_type=%s",
                 request_id,
@@ -87,6 +96,7 @@ def create_app(
         route = getattr(request.scope.get("route"), "path", "unmatched")
         duration_ms = round((perf_counter() - started) * 1000, 2)
         response.headers["X-Request-ID"] = request_id
+        app.state.metrics.observe(request.method, route, response.status_code, duration_ms)
         logger.info(
             "request_completed request_id=%s method=%s route=%s status=%s duration_ms=%s",
             request_id,
@@ -162,6 +172,7 @@ def create_app(
     async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
         request_id = getattr(request.state, "request_id", None)
         logger.error("unhandled_error request_id=%s error_type=%s", request_id, type(exc).__name__)
+        app.state.metrics.unhandled_error()
         return JSONResponse(
             status_code=500,
             content={
@@ -174,6 +185,16 @@ def create_app(
         )
 
     app.include_router(health_router)
+
+    if settings.metrics_token:
+        # Off unless a token is configured; not part of the public API schema.
+        @app.get("/metrics", include_in_schema=False)
+        def metrics(request: Request):
+            supplied = request.headers.get("authorization", "")
+            if not secrets.compare_digest(supplied, f"Bearer {settings.metrics_token}"):
+                raise ApiError(401, "metrics_unauthorized", "A valid metrics token is required.")
+            return PlainTextResponse(app.state.metrics.render(), media_type="text/plain; version=0.0.4")
+
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
 

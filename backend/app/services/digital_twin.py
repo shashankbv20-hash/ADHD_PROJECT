@@ -7,8 +7,9 @@ from uuid import UUID, uuid4
 from app.core.errors import ApiError
 from app.repositories.firestore import Repository, path
 from app.services.cpt_scoring import aggregate_cpt_summaries
+from app.services.twin_insights import twin_v2_insights
 
-TWIN_ALGORITHM_VERSION = "cpt-descriptive-twin-v1"
+TWIN_ALGORITHM_VERSION = "cpt-descriptive-twin-v2"
 
 
 def _value(record: Any, key: str) -> Any:
@@ -29,6 +30,7 @@ def build_twin_snapshot(summaries: list[Any]) -> dict[str, Any]:
             "observation_start": None,
             "observation_end": None,
             "data_provenance": "frontend-cpt-demo-derived-v1",
+            "insights": twin_v2_insights([], []),
         }
 
     baseline, latest = ordered[0], ordered[-1]
@@ -65,6 +67,10 @@ def build_twin_snapshot(summaries: list[Any]) -> dict[str, Any]:
         "observation_start": baseline_created.isoformat(),
         "observation_end": latest_created.isoformat(),
         "data_provenance": "frontend-cpt-demo-derived-v1",
+        "insights": twin_v2_insights(
+            [_value(item, "metrics") for item in ordered],
+            [_value(item, "created_at").isoformat() for item in ordered],
+        ),
     }
 
 
@@ -88,7 +94,11 @@ def rebuild_digital_twin(
     audit_id = str(uuid4())
 
     def write(tx):
-        summaries = tx.list(path("subjects", sid, "activitySummaries"))
+        summaries = [
+            item
+            for item in tx.list(path("subjects", sid, "activitySummaries"))
+            if item.get("activity_code", "cpt") == "cpt"
+        ]
         summaries.sort(key=lambda item: (item.created_at, item.id))
         snapshot = build_twin_snapshot(summaries)
         quality_flags = [] if len(summaries) >= 2 else ["fewer_than_two_scored_observations"]

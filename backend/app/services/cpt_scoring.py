@@ -37,7 +37,26 @@ CPT_SCORED_STIMULI = (
     "B",
     "A",
 )
-CPT_RESPONSE_WINDOW_MS = 1200
+# Go/No-Go: "G" (go) requires a response, "N" (no-go) requires withholding it. Scoring reuses the
+# CPT outcome model (hit / miss = omission / false alarm = commission / correct rejection).
+GO_NO_GO_CODE = "go-no-go"
+GO_NO_GO_PRACTICE_STIMULI = tuple("GGNGGGNG")
+GO_NO_GO_SCORED_STIMULI = tuple("GGNGGGNGGNGGGNGGGGGNGGNGNGGGNGGG")
+GO_NO_GO_CALCULATION_VERSION = "backend-go-no-go-scoring-v1"
+GO_NO_GO_DATA_PROVENANCE = "frontend-go-no-go-demo-event-derived-v1"
+
+# N-back: the child presses when the letter matches the one N trials earlier. Practice is 1-back only.
+# A scored run is 16 trials of 1-back followed by 16 trials of 2-back; matching restarts at each level,
+# so the first N trials of a level can never be targets. The server derives every trial's target status
+# from the letters, so a browser cannot claim a different answer key.
+N_BACK_CODE = "n-back"
+N_BACK_PRACTICE_STIMULI = tuple("ABBCDDAC")
+N_BACK_SCORED_STIMULI = tuple("KKMLLQKMMQFFKLQKLQLMKMFQFKLKQDMQ")
+N_BACK_LEVEL_LENGTH = 16  # scored: trials 0-15 are 1-back, 16-31 are 2-back
+N_BACK_CALCULATION_VERSION = "backend-n-back-scoring-v1"
+N_BACK_DATA_PROVENANCE = "frontend-n-back-demo-event-derived-v1"
+
+CPT_RESPONSE_WINDOW_MS = 2200
 CPT_CALCULATION_VERSION = "backend-cpt-scoring-v1"
 CPT_DATA_PROVENANCE = "frontend-cpt-demo-event-derived-v1"
 
@@ -48,12 +67,24 @@ def _round_half_up(value: float, places: int = 0) -> int | float:
     return int(rounded) if places == 0 else float(rounded)
 
 
-def expected_stimuli(mode: str) -> tuple[str, ...]:
-    if mode == "practice":
-        return CPT_PRACTICE_STIMULI
-    if mode == "scored":
-        return CPT_SCORED_STIMULI
-    raise ApiError(422, "unsupported_activity_mode", "The requested CPT mode is unsupported.")
+TARGET_STIMULUS = {"cpt": "X", GO_NO_GO_CODE: "G"}
+
+# (data provenance, calculation version) stored with each activity's summary.
+ACTIVITY_PROVENANCE = {
+    "cpt": (CPT_DATA_PROVENANCE, CPT_CALCULATION_VERSION),
+    GO_NO_GO_CODE: (GO_NO_GO_DATA_PROVENANCE, GO_NO_GO_CALCULATION_VERSION),
+    N_BACK_CODE: (N_BACK_DATA_PROVENANCE, N_BACK_CALCULATION_VERSION),
+}
+
+
+def expected_stimuli(mode: str, activity_code: str = "cpt") -> tuple[str, ...]:
+    if mode not in ("practice", "scored"):
+        raise ApiError(422, "unsupported_activity_mode", "The requested activity mode is unsupported.")
+    if activity_code == GO_NO_GO_CODE:
+        return GO_NO_GO_PRACTICE_STIMULI if mode == "practice" else GO_NO_GO_SCORED_STIMULI
+    if activity_code == N_BACK_CODE:
+        return N_BACK_PRACTICE_STIMULI if mode == "practice" else N_BACK_SCORED_STIMULI
+    return CPT_PRACTICE_STIMULI if mode == "practice" else CPT_SCORED_STIMULI
 
 
 def expected_outcome(is_target: bool, responded: bool) -> str:
@@ -62,16 +93,29 @@ def expected_outcome(is_target: bool, responded: bool) -> str:
     return "false-alarm" if responded else "correct-rejection"
 
 
-def validate_cpt_event(event: CptEventInput, mode: str) -> dict[str, Any]:
-    stimuli = expected_stimuli(mode)
+def n_back_level(mode: str, trial_index: int) -> int:
+    """The N of the trial: practice is 1-back; scored is 1-back then 2-back."""
+    return 1 if mode == "practice" or trial_index < N_BACK_LEVEL_LENGTH else 2
+
+
+def _expected_target(activity_code: str, mode: str, index: int, stimuli: tuple[str, ...]) -> bool:
+    if activity_code != N_BACK_CODE:
+        return stimuli[index] == TARGET_STIMULUS[activity_code]
+    n = n_back_level(mode, index)
+    level_start = 0 if n_back_level(mode, index) == 1 else N_BACK_LEVEL_LENGTH
+    return index - level_start >= n and stimuli[index] == stimuli[index - n]
+
+
+def validate_cpt_event(event: CptEventInput, mode: str, activity_code: str = "cpt") -> dict[str, Any]:
+    stimuli = expected_stimuli(mode, activity_code)
     if event.trial_index >= len(stimuli):
         raise ApiError(
             422, "trial_index_out_of_range", "A CPT trial index is outside the configured sequence."
         )
 
     expected_stimulus = stimuli[event.trial_index]
-    expected_target = expected_stimulus == "X"
-    expected_trial_id = f"cpt-{mode}-{event.trial_index + 1:02d}"
+    expected_target = _expected_target(activity_code, mode, event.trial_index, stimuli)
+    expected_trial_id = f"{activity_code}-{mode}-{event.trial_index + 1:02d}"
     outcome = expected_outcome(expected_target, event.responded)
 
     if (
@@ -169,6 +213,15 @@ def calculate_cpt_metrics(events: list[dict[str, Any]]) -> dict[str, Any]:
         "data_provenance": CPT_DATA_PROVENANCE,
         "calculation_version": CPT_CALCULATION_VERSION,
     }
+
+
+def calculate_activity_metrics(events: list[dict[str, Any]], activity_code: str = "cpt") -> dict[str, Any]:
+    """Event-derived metrics for any response/withhold activity (CPT or Go/No-Go)."""
+    metrics = calculate_cpt_metrics(events)
+    provenance, version = ACTIVITY_PROVENANCE.get(activity_code, ACTIVITY_PROVENANCE["cpt"])
+    metrics["data_provenance"] = provenance
+    metrics["calculation_version"] = version
+    return metrics
 
 
 def aggregate_cpt_summaries(summaries: list[dict[str, Any]]) -> dict[str, Any] | None:

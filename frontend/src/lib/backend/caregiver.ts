@@ -1,4 +1,5 @@
 import type { BackendClient } from "@/lib/backend/client";
+import { fetchAllPages, PAGE_SIZE } from "@/lib/backend/paging";
 import { summaryToCptRun } from "@/lib/backend/summary-mapping";
 import {
   parseServerReport,
@@ -106,6 +107,8 @@ export interface CaregiverSubjectData {
   /** Server-calculated scored runs, newest first. Trial events are never shown to caregivers. */
   runs: CptRunSummary[];
   sessionCount: number;
+  /** True when older runs or sessions exist beyond the page cap. */
+  truncated: boolean;
 }
 
 /** Caregiver side: read-only views of shared subjects. */
@@ -121,8 +124,8 @@ export function createCaregiverViewer(client: BackendClient) {
         client.getDigitalTwin(subjectId),
         client.listDigitalTwinHistory(subjectId),
         client.listReports(subjectId),
-        client.listActivitySummaries(subjectId, { limit: 50 }),
-        client.listSessions(subjectId, { limit: 50 }),
+        fetchAllPages((cursor) => client.listActivitySummaries(subjectId, { limit: PAGE_SIZE, cursor })),
+        fetchAllPages((cursor) => client.listSessions(subjectId, { limit: PAGE_SIZE, cursor })),
       ]);
 
       return {
@@ -134,6 +137,7 @@ export function createCaregiverViewer(client: BackendClient) {
           .filter((summary) => summary.activityCode === "cpt")
           .map((summary) => summaryToCptRun(summary, subjectId)),
         sessionCount: sessions.items.length,
+        truncated: summaries.truncated || sessions.truncated,
       };
     },
 

@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CloudSyncSettings } from "@/features/firebase/cloud-sync-settings";
 import { useFirebaseAuth } from "@/features/auth/firebase-auth-provider";
 import { useActivitySessions } from "@/features/activities/activity-session-store";
+import { ReminderBanner } from "@/features/settings/reminder-banner";
 import { formatDateTime } from "@/lib/utils";
 
 function AccountMetric({
@@ -54,6 +55,7 @@ export function FirebaseParticipantDashboard() {
 
   return (
     <div className="space-y-6">
+      <ReminderBanner />
       <PageHeader
         eyebrow="Participant workspace"
         title={`Welcome, ${account.profile.displayName}`}
