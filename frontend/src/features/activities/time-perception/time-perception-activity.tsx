@@ -15,6 +15,7 @@ import {
   summarizeTimePerception,
   type TimePerceptionSummary,
 } from "@/features/activities/time-perception/time-perception-scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { TimePerceptionRunView } from "@/lib/backend/summary-mapping";
 import type { BackendTimePerceptionEvent } from "@/lib/backend/types";
@@ -101,6 +102,7 @@ export function TimePerceptionActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("time-perception", runId.current, result);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), summary: result }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.

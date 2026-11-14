@@ -17,6 +17,7 @@ import {
   summarizeVisualSequence,
   type VisualSequenceSummary,
 } from "@/features/activities/visual-sequence/visual-sequence-scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { VisualSequenceRunView } from "@/lib/backend/summary-mapping";
 import type { BackendVisualSequenceEvent } from "@/lib/backend/types";
@@ -106,6 +107,7 @@ export function VisualSequenceActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("visual-sequence", runId.current, result);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), summary: result }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.

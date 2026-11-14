@@ -96,6 +96,13 @@ export default async function ActivitiesPage() {
         actions={
           <>
             <ButtonLink
+              href="/participant/activities/results"
+              variant="outline"
+            >
+              <ListChecks aria-hidden="true" className="size-4" />
+              Results by activity
+            </ButtonLink>
+            <ButtonLink
               href="/participant/activities/history"
               variant="outline"
             >

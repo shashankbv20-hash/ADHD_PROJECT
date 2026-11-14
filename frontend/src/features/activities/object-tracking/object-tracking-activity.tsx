@@ -22,6 +22,7 @@ import {
   summarizeObjectTracking,
   type ObjectTrackingSummary,
 } from "@/features/activities/object-tracking/object-tracking-scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { ObjectTrackingRunView } from "@/lib/backend/summary-mapping";
 import type { BackendObjectTrackingEvent } from "@/lib/backend/types";
@@ -144,6 +145,7 @@ export function ObjectTrackingActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("multiple-object-tracking", runId.current, result);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), summary: result }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.

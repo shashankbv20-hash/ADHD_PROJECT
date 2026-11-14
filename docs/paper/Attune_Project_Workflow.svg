@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1210" viewBox="0 0 2000 1210" font-family="Segoe UI, Calibri, Arial, sans-serif">
+<defs><marker id="head" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#44546A"/></marker>
+<marker id="headg" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#7A869A"/></marker></defs>
+<rect width="2000" height="1210" fill="#F7F9FC"/>
+<text x="1000" y="52" font-size="40" font-weight="700" fill="#14304A" text-anchor="middle">Attune ADHD Research Platform: Project Workflow</text>
+<text x="1000" y="88" font-size="20" fill="#5A6B7D" text-anchor="middle">Model pipeline (RG-AGTL on TDBRAIN EEG) and website pipeline (Attune web platform) · status as of 12 November 2026</text>
+<rect x="20" y="112" width="1960" height="470" rx="18" fill="#FFFFFF" stroke="#1F4E79" stroke-width="3"/>
+<rect x="20" y="112" width="1960" height="52" rx="18" fill="#1F4E79"/>
+<rect x="20" y="142" width="1960" height="22" fill="#1F4E79"/>
+<text x="48" y="148" font-size="26" font-weight="700" fill="#FFFFFF">A. Model workflow: Reliability-Gated Adaptive Graph-Transition Learning (EEG)</text>
+<rect x="70" y="194" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="94" cy="220" r="14" fill="#2E7D32"/>
+<text x="94" y="226" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="118" y="226" font-size="19" font-weight="700" fill="#1B2733">TDBRAIN EEG data</text>
+<text x="88" y="258" font-size="15" fill="#34414F">Resting state, eyes open + closed</text>
+<text x="88" y="282" font-size="15" fill="#34414F">91 subjects: 42 ADHD, 49 control</text>
+<rect x="390" y="194" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="414" cy="220" r="14" fill="#2E7D32"/>
+<text x="414" y="226" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="438" y="226" font-size="19" font-weight="700" fill="#1B2733">Audit and subject split</text>
+<text x="408" y="258" font-size="15" fill="#34414F">Per-recording quality audit</text>
+<text x="408" y="282" font-size="15" fill="#34414F">Train 63 / Validation 14 / Test 14</text>
+<text x="408" y="306" font-size="15" fill="#34414F">No person in two sets</text>
+<rect x="710" y="194" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="734" cy="220" r="14" fill="#2E7D32"/>
+<text x="734" y="226" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="758" y="226" font-size="19" font-weight="700" fill="#1B2733">Preprocessing</text>
+<text x="728" y="258" font-size="15" fill="#34414F">250 Hz, 0.5–45 Hz band-pass + notch</text>
+<text x="728" y="282" font-size="15" fill="#34414F">8 s windows, 4 s stride</text>
+<text x="728" y="306" font-size="15" fill="#34414F">Reject &gt;400 µV, 26 channels</text>
+<rect x="1030" y="194" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1054" cy="220" r="14" fill="#2E7D32"/>
+<text x="1054" y="226" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">4</text>
+<text x="1078" y="226" font-size="19" font-weight="700" fill="#1B2733">Band features</text>
+<text x="1048" y="258" font-size="15" fill="#34414F">Delta, Theta, Alpha, Beta, Gamma</text>
+<text x="1048" y="282" font-size="15" fill="#34414F">For each channel and window</text>
+<rect x="1350" y="194" width="280" height="142" rx="12" fill="#FFF4E0" stroke="#E08A00" stroke-width="2.5"/>
+<circle cx="1374" cy="220" r="14" fill="#E08A00"/>
+<text x="1374" y="226" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">5</text>
+<text x="1398" y="226" font-size="19" font-weight="700" fill="#1B2733">PLV connectivity graphs</text>
+<text x="1368" y="258" font-size="15" fill="#34414F">Phase locking between channels</text>
+<text x="1368" y="282" font-size="15" fill="#34414F">Per window and band</text>
+<text x="1368" y="306" font-size="15" fill="#34414F">To confirm in the notebook</text>
+<rect x="1670" y="194" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1694" cy="220" r="14" fill="#2E7D32"/>
+<text x="1694" y="226" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">6</text>
+<text x="1718" y="226" font-size="19" font-weight="700" fill="#1B2733">Adaptive sparse graph</text>
+<text x="1688" y="258" font-size="15" fill="#34414F">Learned graph, top 8 links kept</text>
+<text x="1688" y="282" font-size="15" fill="#34414F">Spatial graph encoder</text>
+<line x1="350" y1="265" x2="388" y2="265" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="670" y1="265" x2="708" y2="265" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="990" y1="265" x2="1028" y2="265" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1310" y1="265" x2="1348" y2="265" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1630" y1="265" x2="1668" y2="265" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<rect x="1670" y="398" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1694" cy="424" r="14" fill="#2E7D32"/>
+<text x="1694" y="430" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">7</text>
+<text x="1718" y="430" font-size="19" font-weight="700" fill="#1B2733">Gate + transitions</text>
+<text x="1688" y="462" font-size="15" fill="#34414F">Reliability gate lowers weight of</text>
+<text x="1688" y="486" font-size="15" fill="#34414F">uncertain changes; tracks stronger</text>
+<text x="1688" y="510" font-size="15" fill="#34414F">and weaker links (kappa 0.7, tau 0.08)</text>
+<rect x="1350" y="398" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1374" cy="424" r="14" fill="#2E7D32"/>
+<text x="1374" y="430" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">8</text>
+<text x="1398" y="430" font-size="19" font-weight="700" fill="#1B2733">Subject embedding</text>
+<text x="1368" y="462" font-size="15" fill="#34414F">Spatial + transition features</text>
+<text x="1368" y="486" font-size="15" fill="#34414F">64 values per subject</text>
+<rect x="1030" y="398" width="280" height="142" rx="12" fill="#FDECEC" stroke="#C62828" stroke-width="2.5"/>
+<circle cx="1054" cy="424" r="14" fill="#C62828"/>
+<text x="1054" y="430" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">9</text>
+<text x="1078" y="430" font-size="19" font-weight="700" fill="#1B2733">XGBoost classifier</text>
+<text x="1048" y="462" font-size="15" fill="#34414F">One prediction per subject</text>
+<text x="1048" y="486" font-size="15" fill="#34414F">Collapsed: predicts control for all</text>
+<rect x="710" y="398" width="280" height="142" rx="12" fill="#FFF4E0" stroke="#E08A00" stroke-width="2.5"/>
+<circle cx="734" cy="424" r="14" fill="#E08A00"/>
+<text x="734" y="430" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">10</text>
+<text x="758" y="430" font-size="19" font-weight="700" fill="#1B2733">Explainability</text>
+<text x="728" y="462" font-size="15" fill="#34414F">SHAP on latent features</text>
+<text x="728" y="486" font-size="15" fill="#34414F">Electrode occlusion (P7, P8, T7)</text>
+<text x="728" y="510" font-size="15" fill="#34414F">Weak: model has not learned yet</text>
+<rect x="390" y="398" width="280" height="142" rx="12" fill="#FDECEC" stroke="#C62828" stroke-width="2.5"/>
+<circle cx="414" cy="424" r="14" fill="#C62828"/>
+<text x="414" y="430" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">11</text>
+<text x="438" y="430" font-size="19" font-weight="700" fill="#1B2733">Held-out test</text>
+<text x="408" y="462" font-size="15" fill="#34414F">14 unseen subjects</text>
+<text x="408" y="486" font-size="15" fill="#34414F">Accuracy 57.1%, recall 0%, AUC 0.56</text>
+<text x="408" y="510" font-size="15" fill="#34414F">Not usable yet</text>
+<rect x="70" y="398" width="280" height="142" rx="12" fill="#F2F4F7" stroke="#7A869A" stroke-width="2.5" stroke-dasharray="9 6"/>
+<circle cx="94" cy="424" r="14" fill="#7A869A"/>
+<text x="94" y="430" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">12</text>
+<text x="118" y="430" font-size="19" font-weight="700" fill="#1B2733">Next: fix and validate</text>
+<text x="88" y="462" font-size="15" fill="#34414F">Class balance, tuning, repeated CV</text>
+<text x="88" y="486" font-size="15" fill="#34414F">Ablations, robustness tests</text>
+<text x="88" y="510" font-size="15" fill="#34414F">Then connect to the website</text>
+<line x1="1810" y1="336" x2="1810" y2="396" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1670" y1="469" x2="1632" y2="469" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1350" y1="469" x2="1312" y2="469" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1030" y1="469" x2="992" y2="469" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="710" y1="469" x2="672" y2="469" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="390" y1="469" x2="352" y2="469" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<rect x="20" y="612" width="1960" height="470" rx="18" fill="#FFFFFF" stroke="#2E6F5E" stroke-width="3"/>
+<rect x="20" y="612" width="1960" height="52" rx="18" fill="#2E6F5E"/>
+<rect x="20" y="642" width="1960" height="22" fill="#2E6F5E"/>
+<text x="48" y="648" font-size="26" font-weight="700" fill="#FFFFFF">B. Website workflow: Attune cognitive-activity platform</text>
+<rect x="70" y="694" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="94" cy="720" r="14" fill="#2E7D32"/>
+<text x="94" y="726" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="118" y="726" font-size="19" font-weight="700" fill="#1B2733">Sign in</text>
+<text x="88" y="758" font-size="15" fill="#34414F">Firebase Authentication</text>
+<text x="88" y="782" font-size="15" fill="#34414F">Participant account</text>
+<rect x="390" y="694" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="414" cy="720" r="14" fill="#2E7D32"/>
+<text x="414" y="726" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="438" y="726" font-size="19" font-weight="700" fill="#1B2733">Research consent</text>
+<text x="408" y="758" font-size="15" fill="#34414F">Explicit and revocable</text>
+<text x="408" y="782" font-size="15" fill="#34414F">Needed before runs are saved</text>
+<rect x="710" y="694" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="734" cy="720" r="14" fill="#2E7D32"/>
+<text x="734" y="726" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="758" y="726" font-size="19" font-weight="700" fill="#1B2733">Choose activity</text>
+<text x="728" y="758" font-size="15" fill="#34414F">11 cognitive activities (CPT,</text>
+<text x="728" y="782" font-size="15" fill="#34414F">Go/No-Go, Stroop, N-back and more)</text>
+<rect x="1030" y="694" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1054" cy="720" r="14" fill="#2E7D32"/>
+<text x="1054" y="726" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">4</text>
+<text x="1078" y="726" font-size="19" font-weight="700" fill="#1B2733">Practice run</text>
+<text x="1048" y="758" font-size="15" fill="#34414F">Short practice first</text>
+<text x="1048" y="782" font-size="15" fill="#34414F">Practice is never saved</text>
+<rect x="1350" y="694" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1374" cy="720" r="14" fill="#2E7D32"/>
+<text x="1374" y="726" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">5</text>
+<text x="1398" y="726" font-size="19" font-weight="700" fill="#1B2733">Scored run</text>
+<text x="1368" y="758" font-size="15" fill="#34414F">Timed trials in the browser</text>
+<text x="1368" y="782" font-size="15" fill="#34414F">Responses and reaction times</text>
+<rect x="1670" y="694" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1694" cy="720" r="14" fill="#2E7D32"/>
+<text x="1694" y="726" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">6</text>
+<text x="1718" y="726" font-size="19" font-weight="700" fill="#1B2733">Send to backend</text>
+<text x="1688" y="758" font-size="15" fill="#34414F">FastAPI API call</text>
+<text x="1688" y="782" font-size="15" fill="#34414F">Safe to retry (idempotent)</text>
+<line x1="350" y1="765" x2="388" y2="765" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="670" y1="765" x2="708" y2="765" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="990" y1="765" x2="1028" y2="765" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1310" y1="765" x2="1348" y2="765" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1630" y1="765" x2="1668" y2="765" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<rect x="1670" y="898" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1694" cy="924" r="14" fill="#2E7D32"/>
+<text x="1694" y="930" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">7</text>
+<text x="1718" y="930" font-size="19" font-weight="700" fill="#1B2733">Server validation</text>
+<text x="1688" y="962" font-size="15" fill="#34414F">Server holds trial lists and answers</text>
+<text x="1688" y="986" font-size="15" fill="#34414F">Mismatching data is rejected</text>
+<rect x="1350" y="898" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1374" cy="924" r="14" fill="#2E7D32"/>
+<text x="1374" y="930" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">8</text>
+<text x="1398" y="930" font-size="19" font-weight="700" fill="#1B2733">Metrics calculated</text>
+<text x="1368" y="962" font-size="15" fill="#34414F">Accuracy, reaction times and</text>
+<text x="1368" y="986" font-size="15" fill="#34414F">activity-specific scores</text>
+<rect x="1030" y="898" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="1054" cy="924" r="14" fill="#2E7D32"/>
+<text x="1054" y="930" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">9</text>
+<text x="1078" y="930" font-size="19" font-weight="700" fill="#1B2733">Stored in Firestore</text>
+<text x="1048" y="962" font-size="15" fill="#34414F">Session, trial events, summary</text>
+<text x="1048" y="986" font-size="15" fill="#34414F">Owned by the participant</text>
+<rect x="710" y="898" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="734" cy="924" r="14" fill="#2E7D32"/>
+<text x="734" y="930" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">10</text>
+<text x="758" y="930" font-size="19" font-weight="700" fill="#1B2733">Results and reports</text>
+<text x="728" y="962" font-size="15" fill="#34414F">History for each activity</text>
+<text x="728" y="986" font-size="15" fill="#34414F">CPT Digital Twin and PDF report</text>
+<rect x="390" y="898" width="280" height="142" rx="12" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<circle cx="414" cy="924" r="14" fill="#2E7D32"/>
+<text x="414" y="930" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">11</text>
+<text x="438" y="930" font-size="19" font-weight="700" fill="#1B2733">Role-based access</text>
+<text x="408" y="962" font-size="15" fill="#34414F">Participant, clinician, caregiver</text>
+<text x="408" y="986" font-size="15" fill="#34414F">(read-only), researcher</text>
+<text x="408" y="1010" font-size="15" fill="#34414F">Data export and erasure</text>
+<rect x="70" y="898" width="280" height="142" rx="12" fill="#F2F4F7" stroke="#7A869A" stroke-width="2.5" stroke-dasharray="9 6"/>
+<circle cx="94" cy="924" r="14" fill="#7A869A"/>
+<text x="94" y="930" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">12</text>
+<text x="118" y="930" font-size="19" font-weight="700" fill="#1B2733">EEG model prediction</text>
+<text x="88" y="962" font-size="15" fill="#34414F">Upload EEG, run validated model</text>
+<text x="88" y="986" font-size="15" fill="#34414F">Deferred until the model works</text>
+<line x1="1810" y1="836" x2="1810" y2="896" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1670" y1="969" x2="1632" y2="969" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1350" y1="969" x2="1312" y2="969" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="1030" y1="969" x2="992" y2="969" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="710" y1="969" x2="672" y2="969" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<line x1="390" y1="969" x2="352" y2="969" stroke="#44546A" stroke-width="3" marker-end="url(#head)"/>
+<path d="M 70 469 L 44 469 L 44 969 L 67 969" fill="none" stroke="#7A869A" stroke-width="3" stroke-dasharray="9 6" marker-end="url(#headg)"/>
+<text x="70" y="602" font-size="15" font-style="italic" fill="#5A6B7D">Planned hand-off to the website after the model is validated</text>
+<rect x="330" y="1118" width="34" height="24" rx="6" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2.5"/>
+<text x="376" y="1137" font-size="17" fill="#34414F">Done</text>
+<rect x="452.8" y="1118" width="34" height="24" rx="6" fill="#FFF4E0" stroke="#E08A00" stroke-width="2.5"/>
+<text x="498.8" y="1137" font-size="17" fill="#34414F">Done, needs confirmation or weak</text>
+<rect x="833.2" y="1118" width="34" height="24" rx="6" fill="#FDECEC" stroke="#C62828" stroke-width="2.5"/>
+<text x="879.2" y="1137" font-size="17" fill="#34414F">Done, result not usable yet</text>
+<rect x="1167.6" y="1118" width="34" height="24" rx="6" fill="#F2F4F7" stroke="#7A869A" stroke-width="2.5" stroke-dasharray="6 4"/>
+<text x="1213.6" y="1137" font-size="17" fill="#34414F">Planned or deferred</text>
+<text x="1000" y="1180" font-size="15" fill="#5A6B7D" text-anchor="middle">Research prototype. Not a clinical diagnostic tool. The EEG model is not connected to the website yet.</text>
+</svg>

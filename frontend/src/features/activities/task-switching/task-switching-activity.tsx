@@ -16,6 +16,7 @@ import {
   summarizeTaskSwitching,
   type TaskSwitchingSummary,
 } from "@/features/activities/task-switching/task-switching-scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { TaskSwitchingRunView } from "@/lib/backend/summary-mapping";
 import type { BackendTaskSwitchingEvent } from "@/lib/backend/types";
@@ -116,6 +117,7 @@ export function TaskSwitchingActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("task-switching", runId.current, result);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), summary: result }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.

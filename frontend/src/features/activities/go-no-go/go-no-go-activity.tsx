@@ -12,6 +12,7 @@ import {
   GO_NO_GO_STIMULUS_DURATION_MS,
 } from "@/features/activities/go-no-go/go-no-go-config";
 import { calculateCptMetrics, createCptTrialEvent } from "@/features/activities/cpt/scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { GoNoGoRunView } from "@/lib/backend/summary-mapping";
 import { formatDateTime } from "@/lib/utils";
@@ -103,6 +104,7 @@ export function GoNoGoActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("go-no-go", runId.current, result);
       setThisVisit((previous) => [
         { id: runId.current, at: new Date().toISOString(), metrics: result },
         ...previous,

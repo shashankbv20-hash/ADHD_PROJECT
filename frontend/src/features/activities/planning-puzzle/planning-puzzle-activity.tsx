@@ -22,6 +22,7 @@ import {
   summarizePlanningPuzzle,
   type PlanningPuzzleSummary,
 } from "@/features/activities/planning-puzzle/planning-puzzle-scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { PlanningPuzzleRunView } from "@/lib/backend/summary-mapping";
 import type { BackendPlanningPuzzleEvent } from "@/lib/backend/types";
@@ -156,6 +157,7 @@ export function PlanningPuzzleActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("planning-puzzle", runId.current, result);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), summary: result }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.

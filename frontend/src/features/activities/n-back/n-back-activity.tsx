@@ -14,6 +14,7 @@ import {
   N_BACK_SCORED_TRIALS,
   nBackLevel,
 } from "@/features/activities/n-back/n-back-config";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { NBackRunView } from "@/lib/backend/summary-mapping";
 import { formatDateTime } from "@/lib/utils";
@@ -132,6 +133,7 @@ export function NBackActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("n-back", runId.current, summary);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), result: summary }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.

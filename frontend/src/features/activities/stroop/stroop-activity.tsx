@@ -13,6 +13,7 @@ import {
   STROOP_SCORED_TRIALS,
 } from "@/features/activities/stroop/stroop-config";
 import { summarizeStroop, type StroopSummary } from "@/features/activities/stroop/stroop-scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { StroopRunView } from "@/lib/backend/summary-mapping";
 import type { BackendStroopEvent, StroopColor } from "@/lib/backend/types";
@@ -112,6 +113,7 @@ export function StroopActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("stroop", runId.current, result);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), summary: result }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.

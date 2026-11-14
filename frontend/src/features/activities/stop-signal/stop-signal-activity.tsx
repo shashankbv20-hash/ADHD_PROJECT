@@ -18,6 +18,7 @@ import {
   summarizeStopSignal,
   type StopSignalSummary,
 } from "@/features/activities/stop-signal/stop-signal-scoring";
+import { recordRun } from "@/features/activities/run-log";
 import { useOptionalBackendSync } from "@/features/backend/backend-sync-provider";
 import type { StopSignalRunView } from "@/lib/backend/summary-mapping";
 import type { BackendStopSignalEvent } from "@/lib/backend/types";
@@ -122,6 +123,7 @@ export function StopSignalActivity() {
       }
 
       setPhase("scored-done");
+      recordRun("stop-signal", runId.current, result);
       setThisVisit((previous) => [{ id: runId.current, at: new Date().toISOString(), summary: result }, ...previous]);
 
       // Saved only when the participant has already granted research consent; never otherwise.
